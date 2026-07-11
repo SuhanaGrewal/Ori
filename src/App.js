@@ -1,25 +1,32 @@
-import logo from './logo.svg';
-import './App.css';
+import WorkflowBuildDemo from "./WorkflowBuildDemo";
+import LandingPage from "./LandingPage";
+import LandingPageWithDemo from "./LandingPageWithDemo";
+import Why from "./Why";
+import WhatSection from "./WhatSection";
+
+const VIEW = "site"; // "site" = hero + why | "landingWithDemo" | "landing" | "demo"
 
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+  if (VIEW === "demo") {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", padding: 40 }}>
+        <WorkflowBuildDemo />
+      </div>
+    );
+  }
+  if (VIEW === "landingWithDemo") {
+    return <LandingPageWithDemo />;
+  }
+  if (VIEW === "site") {
+    return (
+      <div>
+        <LandingPageWithDemo />
+        <Why />
+        <WhatSection />
+      </div>
+    );
+  }
+  return <LandingPage />;
 }
 
 export default App;

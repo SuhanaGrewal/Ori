@@ -1,8 +1,13 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import WorkflowBuildDemo from "./WorkflowBuildDemo";
 
-test('renders learn react link', () => {
-  render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
-});
+
+function App() {
+ return (
+ <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", padding: 40 }}>
+ <WorkflowBuildDemo />
+ </div>
+ );
+}
+
+
+export default App;
