@@ -1,11 +1,12 @@
 import React, { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import ProblemStatement from "./ProblemStatement";
 
 const BODY = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
-const SERIF = "'Playfair Display', serif";
+const SERIF = "'CMU Serif', 'Old Standard TT', serif";
 const MONO = "'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace";
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap');`;
+const FONT_IMPORT = `@import url('https://fonts.cdnfonts.com/css/cmu-serif'); @import url('https://fonts.googleapis.com/css2?family=Old+Standard+TT:ital,wght@0,400;1,400&display=swap');`;
 
 const INK = "#1B1B18";
 const INK_SOFT = "#6E6C62";
@@ -15,9 +16,9 @@ const PALE_TEAL = "#7FAEB8";
 // per-card teal, stepping lighter -> darker down the stack
 const TEALS = ["#8FBFC9", "#6FA3AF", "#527F8A"];
 
-// every sheet matches the landing demo container's white; layers read via
-// edge lines and contact shadows instead of tint
-const PAPER = "#FFFFFF";
+// every sheet matches the landing demo container's warm paper; layers read
+// via edge lines and contact shadows instead of tint
+const PAPER = "#FBF9F4";
 const EDGE_TONES = ["rgba(27,27,24,0.08)", "rgba(27,27,24,0.14)", "rgba(27,27,24,0.20)"];
 
 // fine matte grain — tiled SVG noise, transparent between speckles
@@ -39,11 +40,15 @@ const STATS = [
     id: "copy-paste",
     tag: "Tedium",
     title: (color) => (
-      <span style={{ display: "block", whiteSpace: "nowrap" }}>
-        Copy. Paste. <em style={{ color, fontStyle: "italic" }}>Repeat.</em>
-      </span>
+      <>
+        <span style={{ display: "block", whiteSpace: "nowrap" }}>Twice the Work,</span>
+        <span style={{ display: "block", whiteSpace: "nowrap" }}>
+          <em style={{ color, fontStyle: "italic" }}>Once Done.</em>
+        </span>
+      </>
     ),
-    line: "The average employee copy-pastes data over 1,000 times a week — 52,000 times a year.",
+    line: "The average employee copy-pastes data more than 1,000 times a week — the same information, moved by hand, over and over.",
+    source: "~ ProcessMaker, 2024",
   },
   {
     id: "rebuilt",
@@ -56,7 +61,8 @@ const STATS = [
         </span>
       </>
     ),
-    line: "The second-biggest time sink in operations: rebuilding reports that already exist.",
+    line: "The average knowledge worker spends 209 hours a year redoing work that was already done once.",
+    source: "~ Asana, Anatomy of Work Index, 2023",
   },
   {
     id: "handoff",
@@ -66,15 +72,18 @@ const STATS = [
         Lost in the <em style={{ color, fontStyle: "italic" }}>handoff.</em>
       </span>
     ),
-    line: "A third of operations leaders say their biggest slowdown is what gets lost in the handoff.",
+    line: "Employees lose nearly a fifth of their week searching for information or waiting on someone else before they can move forward.",
+    source: "~ McKinsey Global Institute, 2012",
   },
 ];
 
-// each sheet gets its own scroll band to lift, straighten flat, and settle back
+// each sheet gets its own scroll band to lift, straighten flat, and settle
+// back. The first band opens almost immediately so the top card begins
+// lifting the moment the scene pins — no dead scroll.
 const BANDS = [
-  [0.1, 0.34],
-  [0.38, 0.62],
-  [0.66, 0.9],
+  [0.02, 0.3],
+  [0.35, 0.63],
+  [0.68, 0.96],
 ];
 
 // compact pile: sheets share one horizontal axis, each lower sheet peeking out
@@ -82,9 +91,9 @@ const BANDS = [
 // the one about to peel up.
 const REST_Y = [-24, 20, 64];
 
-// how far the scene sits below the viewport's vertical center — gives the
-// lifted card breathing room under the fixed nav
-const SCENE_DROP = 70;
+// the scene sits low in the viewport so the pinned quote stays clear at the
+// top and the cards lift up into the open middle beneath it
+const SCENE_DROP = 150;
 
 function PaperSheet({ scrollYProgress, band, index, stat }) {
   const [s, e] = band;
@@ -178,7 +187,7 @@ function PaperSheet({ scrollYProgress, band, index, stat }) {
             style={{
               fontFamily: MONO,
               fontSize: 10.5,
-              fontWeight: 700,
+              fontWeight: 400,
               letterSpacing: "0.16em",
               textTransform: "uppercase",
               color: INK_SOFT,
@@ -205,7 +214,7 @@ function PaperSheet({ scrollYProgress, band, index, stat }) {
           <p
             style={{
               fontFamily: SERIF,
-              fontWeight: 600,
+              fontWeight: 400,
               fontSize: 28,
               letterSpacing: "-0.01em",
               color: INK,
@@ -221,62 +230,31 @@ function PaperSheet({ scrollYProgress, band, index, stat }) {
           <p
             style={{
               fontFamily: BODY,
-              fontSize: 15,
+              fontSize: 14,
               color: INK,
-              lineHeight: 1.65,
+              lineHeight: 1.6,
               margin: 0,
-              maxWidth: 250,
+              maxWidth: 262,
             }}
           >
             {stat.line}
           </p>
+
+          <p
+            style={{
+              fontFamily: BODY,
+              fontStyle: "italic",
+              fontSize: 11,
+              color: INK_SOFT,
+              margin: "16px 0 0",
+              maxWidth: 262,
+            }}
+          >
+            {stat.source}
+          </p>
         </div>
       </motion.div>
     </motion.div>
-  );
-}
-
-function QuoteBreak() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "32px 24px 20px",
-        background: "#FFFFFF",
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 26 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: false, amount: 0.6 }}
-        transition={{ duration: 0.9, ease: "easeOut" }}
-        style={{ textAlign: "center" }}
-      >
-        <p
-          style={{
-            fontFamily: SERIF,
-            fontWeight: 500,
-            fontSize: 38,
-            color: INK,
-            lineHeight: 1.4,
-            margin: 0,
-          }}
-        >
-          <span style={{ display: "block", whiteSpace: "nowrap" }}>
-            &ldquo;There is nothing so useless as doing efficiently
-          </span>
-          <span style={{ display: "block", whiteSpace: "nowrap" }}>
-            that which <span style={{ color: PALE_TEAL, fontStyle: "italic" }}>should not be done</span> at
-            all.&rdquo;
-          </span>
-        </p>
-        <p style={{ fontFamily: BODY, fontSize: 15, color: INK_SOFT, marginTop: 24 }}>
-          ~ <span style={{ fontStyle: "italic" }}>Peter Drucker</span>, Goodreads
-        </p>
-      </motion.div>
-    </div>
   );
 }
 
@@ -328,61 +306,26 @@ export default function Why() {
     <>
       <style>{FONT_IMPORT}</style>
 
-      <QuoteBreak />
-
-      <section ref={sectionRef} style={{ position: "relative", height: "340vh", background: "#FFFFFF" }}>
+      <section ref={sectionRef} style={{ position: "relative", height: "240vh", background: "transparent" }}>
         <div style={{ position: "sticky", top: 0, height: "100vh", overflow: "hidden" }}>
-          {/* faint cutting-mat grid, fading out toward the edges */}
-          <div
+          {/* the problem quote lives at the top of the pinned scene — visible
+              the whole time the cards lift, then fades once the last card has
+              had its reveal */}
+          <motion.div
             style={{
               position: "absolute",
-              inset: 0,
-              backgroundImage: [
-                "linear-gradient(rgba(27,27,24,0.055) 1px, transparent 1px)",
-                "linear-gradient(90deg, rgba(27,27,24,0.055) 1px, transparent 1px)",
-                "linear-gradient(rgba(27,27,24,0.03) 1px, transparent 1px)",
-                "linear-gradient(90deg, rgba(27,27,24,0.03) 1px, transparent 1px)",
-              ].join(", "),
-              backgroundSize: "280px 280px, 280px 280px, 56px 56px, 56px 56px",
-              WebkitMaskImage: "radial-gradient(ellipse 75% 65% at 50% 58%, black 30%, transparent 80%)",
-              maskImage: "radial-gradient(ellipse 75% 65% at 50% 58%, black 30%, transparent 80%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* heading shares the stack's horizontal axis */}
-          <div
-            style={{
-              position: "absolute",
+              top: 108,
               left: 0,
-              top: `calc(50% + ${SCENE_DROP}px)`,
-              transform: "translateY(-50%)",
+              right: 0,
               display: "flex",
-              alignItems: "center",
-              gap: 28,
+              justifyContent: "center",
+              zIndex: 2,
+              pointerEvents: "none",
+              opacity: useTransform(scrollYProgress, [0.85, 0.95], [1, 0]),
             }}
           >
-            <div
-              style={{
-                width: 140,
-                height: 2,
-                borderRadius: 2,
-                background: `linear-gradient(90deg, rgba(127,174,184,0), ${PALE_TEAL})`,
-              }}
-            />
-            <h2
-              style={{
-                fontFamily: SERIF,
-                fontWeight: 500,
-                fontSize: 88,
-                color: INK,
-                margin: 0,
-                lineHeight: 1,
-              }}
-            >
-              Why
-            </h2>
-          </div>
+            <ProblemStatement />
+          </motion.div>
 
           {/* the paper stack */}
           <div

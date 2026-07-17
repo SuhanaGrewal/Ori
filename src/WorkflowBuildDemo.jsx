@@ -6,12 +6,12 @@ import formsIcon from "./assets/forms-icon.webp";
 import outlookIcon from "./assets/outlook-icon.webp";
 import excelIcon from "./assets/excel-icon.webp";
 import craneAccent from "./assets/crane-accent.png";
-import craneFoldVideo from "./assets/crane-fold-cropped.webm";
+import craneFoldVideo from "./assets/crane-fold-alpha.webm";
 
 const BODY = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
 const MONO = "'SF Mono', Menlo, monospace";
-const SERIF = "'Playfair Display', serif";
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&display=swap');`;
+const SERIF = "'CMU Serif', 'Old Standard TT', serif";
+const FONT_IMPORT = `@import url('https://fonts.cdnfonts.com/css/cmu-serif'); @import url('https://fonts.googleapis.com/css2?family=Old+Standard+TT:ital,wght@0,400;1,400&display=swap');`;
 
 const INK = "#57564F";
 const INK_SOFT = "#8B897E";
@@ -23,7 +23,7 @@ const PANEL_BG = "#ceedf5";
 const GRID_LINE = "#D6D3CB";
 const GRID_HEADER_BG = "#F3F2ED";
 
-const CARD_TITLE = { fontFamily: SERIF, fontWeight: 600, fontSize: 15, color: INK };
+const CARD_TITLE = { fontFamily: SERIF, fontWeight: 400, fontSize: 15, color: INK };
 const CARD_STYLE = {
   position: "relative", background: "#FFFFFF", border: `1px solid ${LINE}`, borderRadius: 16,
   padding: "20px 22px", width: 320, boxShadow: "0 12px 30px rgba(27,27,24,0.09)",
@@ -162,7 +162,7 @@ function StageCopyPaste() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-      <div style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 600, color: INK_SOFT }}>
+      <div style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 400, color: INK_SOFT }}>
         Copying form responses by hand
       </div>
       <SheetGrid
@@ -262,7 +262,7 @@ function AppTile({ src, name, sub, delay }) {
 function StageReview() {
   return (
     <div style={CARD_STYLE}>
-      <div style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 600, color: INK_SOFT, marginBottom: 12 }}>Review workflow</div>
+      <div style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 400, color: INK_SOFT, marginBottom: 12 }}>Review workflow</div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 14 }}>
         <AppTile src={formsIcon} name="Forms" sub="New response" delay={0.05} />
@@ -334,7 +334,7 @@ function StageAutomate() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-      <div style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 600, color: INK_SOFT }}>
+      <div style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 400, color: INK_SOFT }}>
         Automation Deployed
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, background: ACCENT_SOFT, borderRadius: 20, padding: "4px 10px" }}>
@@ -362,6 +362,9 @@ function StageAutomate() {
 }
 
 function StageFold() {
+  // crane-fold-alpha.webm is a VP8-alpha video: the simulator's white
+  // background is keyed out to real transparency, so the crane floats on
+  // whatever is behind the panel (the desk shows through seamlessly).
   return (
     <video
       src={craneFoldVideo}
@@ -413,8 +416,8 @@ export default function WorkflowBuildDemo({ activeStage }) {
         animate={{
           backgroundColor: isFold ? "rgba(197,243,255,0)" : PANEL_BG,
           boxShadow: isFold
-            ? "0 20px 50px rgba(27,27,24,0)"
-            : "0 20px 50px rgba(27,27,24,0.06)",
+            ? "0 2px 5px -1px rgba(27,27,24,0), 0 34px 60px -26px rgba(27,27,24,0)"
+            : "0 2px 5px -1px rgba(27,27,24,0.16), 0 34px 60px -26px rgba(27,27,24,0.30)",
         }}
         transition={{ duration: 0.25, delay: 0.25 }}
         style={{
