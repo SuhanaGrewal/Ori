@@ -27,6 +27,31 @@ def _span_priority(span: Any) -> float:
     return getattr(span, "score", -1.0)
 
 
+_POSSESSIVE_SUFFIXES = ("'s", "’s")
+
+
+def _trim_trailing_possessive(text: str, start: int, end: int) -> tuple[int, int]:
+    """trims a trailing possessive "'s" (straight or curly apostrophe)
+    from a detected span, e.g. presidio matching the whole "Billy
+    Wardrop's" in a follow-up question like "what is Billy Wardrop's
+    email address" as one PERSON span. Left untrimmed, this is a
+    different exact substring than the plain "Billy Wardrop" an email
+    header uses, so - even after the casefold fix for case differences -
+    the two get separate placeholders and the model sees two unrelated
+    people, denying one has an email address while citing the other as
+    the source for it. Confirmed via real testing: reconstructing the
+    exact tokenized text sent to the model for a live failing follow-up
+    question showed exactly this ("<PERSON_2>" for "Billy Wardrop's" vs
+    "<PERSON_1>" for the header's plain "Billy Wardrop"). Trimming only
+    the span (not the substituted text) leaves the possessive suffix as
+    plain text right after the placeholder, so "Billy Wardrop's" still
+    reads correctly as "<PERSON_1>'s" once tokenized."""
+    for suffix in _POSSESSIVE_SUFFIXES:
+        if text[start:end].endswith(suffix):
+            return start, end - len(suffix)
+    return start, end
+
+
 def _extend_over_wrapping_brackets(text: str, start: int, end: int) -> tuple[int, int]:
     """extends a span to consume immediately-surrounding literal '<'/'>'
     characters - a real, extremely common email convention ("Name
@@ -124,11 +149,12 @@ def tokenize_for_external_call(
     canonical_text: dict[tuple[str, int], str] = {}
     labeled: list[tuple[int, int, str, int | None]] = []
     for span in sorted(spans, key=lambda s: s.start):
-        sub_start, sub_end = _extend_over_wrapping_brackets(text, span.start, span.end)
+        match_start, match_end = _trim_trailing_possessive(text, span.start, span.end)
+        sub_start, sub_end = _extend_over_wrapping_brackets(text, match_start, match_end)
         if span.entity_type in HARD_SECRET_ENTITIES:
             labeled.append((sub_start, sub_end, span.entity_type, None))
             continue
-        exact_text = text[span.start : span.end]
+        exact_text = text[match_start:match_end]
         value_key = (span.entity_type, exact_text.casefold())
         if value_key in value_to_idx:
             idx = value_to_idx[value_key]

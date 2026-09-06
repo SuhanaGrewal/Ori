@@ -278,6 +278,30 @@ def test_tokenize_does_not_extend_over_brackets_that_are_not_adjacent():
     assert result.tokenized_text == "email: <EMAIL_ADDRESS_1> (no brackets here)"
 
 
+def test_tokenize_dedupes_possessive_form_with_plain_name():
+    # real bug, found by reconstructing the exact tokenized text sent to
+    # the model for a live failing follow-up ("what is Billy Wardrop's
+    # email address?"): presidio matched the whole "Billy Wardrop's"
+    # (including the possessive suffix) as one PERSON span - a different
+    # exact substring than an email header's plain "Billy Wardrop", so
+    # even after the casefold fix for case differences, the two got
+    # separate placeholders. The model then saw two unrelated people and
+    # denied one had an email address while citing the other as the
+    # source for it.
+    text = "From: Billy Wardrop\n\nwhat is Billy Wardrop's email address?"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=6, end=19),
+            Span(entity_type="PERSON", start=29, end=44),  # "Billy Wardrop's", incl. suffix
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "From: <PERSON_1>\n\nwhat is <PERSON_1>'s email address?"
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop"}
+
+
 def test_tokenize_hard_secret_becomes_redacted_marker_not_in_mapping():
     text = "card: 4111111111111111"
     analyzer = _FakeAnalyzer([Span(entity_type="CREDIT_CARD", start=6, end=22)])
