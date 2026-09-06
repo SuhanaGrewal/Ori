@@ -208,7 +208,22 @@ def ask(
                 result = replace(result, abstained=False, abstain_reason=None, chunks=[candidate])
                 break
 
-    if result.abstained and history:
+    if result.abstained and history and effective_question != question:
+        # effective_question != question is the signal that this was a
+        # genuine follow-up needing prior context to stand alone, not a
+        # fresh topic switch that merely arrived in the same conversation.
+        # rewrite_followup_question() is explicitly instructed to return
+        # an already-self-contained question completely unchanged - found
+        # live without this guard: "was i in the hackathons winner list?"
+        # (a clean, self-contained question with real matching content -
+        # a Devpost competition-winners email - sitting in the index)
+        # abstained on its own fresh retrieval, then this fallback forced
+        # in the PRIOR turn's unrelated British Airways flight chunk
+        # anyway, producing "I can only see your British Airways flight
+        # booking" instead of ever running a real search for hackathon
+        # content. A follow-up that genuinely needed rewriting (e.g. "when
+        # will it be delivered" -> "when will my PAN application be
+        # delivered") still triggers this fallback exactly as before.
         recovered = _recover_previous_grounding(history, store=store)
         if recovered:
             result = replace(result, abstained=False, abstain_reason=None, chunks=recovered, confidence=1.0)

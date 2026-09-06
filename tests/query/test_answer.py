@@ -513,6 +513,56 @@ def test_ask_falls_back_to_previous_grounding_when_followup_abstains(tmp_path):
     assert second.chunks[0].parent_text == "your e-pan file has been processed"
 
 
+def test_ask_does_not_recover_previous_grounding_for_a_fresh_self_contained_question(tmp_path):
+    # real bug: "was i in the hackathons winner list?" is a clean,
+    # self-contained fresh topic switch, not a follow-up - a real,
+    # directly-matching email (a Devpost competition-winners notice)
+    # existed in the index, but this fresh question's own retrieval
+    # abstained on its own (a fake/low reranker score here, standing in
+    # for whatever made the real hybrid search miss it), and - before
+    # this fix - the sticky-fallback fired anyway just because history
+    # existed, forcing in the PRIOR turn's completely unrelated grounding
+    # (a British Airways flight chunk) and producing "I can only see your
+    # British Airways flight booking" instead of a real search ever
+    # running. rewrite_followup_question() is explicitly instructed to
+    # return an already-self-contained question unchanged - that's the
+    # signal used here: only recover previous grounding when the question
+    # was actually rewritten (a genuine follow-up), never when it stood on
+    # its own already.
+    conversation_store = ConversationStore(tmp_path / "conversations.db")
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    _seed_high_confidence_chunk(store, "your british airways flight departs", query_vec)
+
+    client = _FakeMultiReplyClient([
+        "Your flight already happened [1].",
+        "was i in the hackathons winner list?",  # unchanged - already self-contained
+        "NO",  # tiebreak: the low-confidence flight chunk does not answer this
+    ])
+
+    first = ask(
+        "whats the status with my upcoming flights", store=store, embedder=_FakeEmbedder(query_vec),
+        reranker=_FakeReranker({"your british airways flight departs": 10.0}),
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+        conversation_id="thread-1", conversation_store=conversation_store,
+    )
+    assert first.abstained is False
+
+    second = ask(
+        "was i in the hackathons winner list?", store=store, embedder=_FakeEmbedder(query_vec),
+        # explicitly negative, not just absent-from-dict (which defaults
+        # to 0.0 and, after the reranker's own sigmoid, becomes exactly
+        # 0.5 - the abstain threshold itself, which does NOT abstain since
+        # the check is a strict "<"). This must land clearly below it.
+        reranker=_FakeReranker({"your british airways flight departs": -10.0}),
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+        conversation_id="thread-1", conversation_store=conversation_store,
+    )
+
+    assert second.abstained is True
+    assert second.abstain_reason == "low_confidence"
+
+
 def test_ask_still_abstains_on_followup_with_no_prior_grounded_turn(tmp_path):
     # a follow-up with conversation history but nothing grounded to fall
     # back to (the earlier turn in this thread itself abstained, and
