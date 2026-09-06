@@ -10,8 +10,17 @@ import numpy as np
 
 from meridian.indexing.hybrid_search import hybrid_search
 from meridian.indexing.store import IndexStore
-from meridian.query.date_range import chunk_in_range
+from meridian.query.date_range import _DATE_METADATA_KEYS, chunk_in_range, parse_stored_date
 from meridian.query.reranker import rerank
+
+# how close two reranked scores need to be before "which one is actually
+# #1" is treated as noise rather than a real quality signal - found live:
+# asking the identical question multiple times against several
+# near-identical real documents (three separate receipts from the same
+# sender) picked a different one each time, none of them the actually
+# most-recent one. Reranker scores that close together aren't a
+# meaningful ranking to trust as-is.
+_RECENCY_TIEBREAK_EPSILON = 0.05
 
 AbstainReason = Literal["no_candidates", "no_candidates_in_date_range", "low_confidence", "no_upcoming_match"]
 # "no_upcoming_match" is never returned by retrieve() itself - it's set by
@@ -104,6 +113,45 @@ def row_to_chunk(row: sqlite3.Row, confidence: float) -> RetrievedChunk:
     )
 
 
+def _row_date(row: sqlite3.Row):
+    """the same per-source date lookup date_range.py's chunk_in_range()
+    already uses (gmail -> sent_at, calendar -> start_at; every other
+    source has no date concept and returns None) - reused here rather
+    than reimplemented, for the recency tiebreak below."""
+    metadata_key = _DATE_METADATA_KEYS.get(row["source"])
+    if metadata_key is None:
+        return None
+    return parse_stored_date(json.loads(row["metadata_json"]).get(metadata_key))
+
+
+def _break_near_ties_by_recency(
+    ranked: list[tuple[sqlite3.Row, float]],
+) -> list[tuple[sqlite3.Row, float]]:
+    """found live: asking the identical question several times against
+    multiple near-identical real documents (three separate receipts from
+    the same sender) picked a different one each time via whichever
+    happened to score a hair higher, and never the actually most-recent
+    one - the kind of tiebreak a human would obviously make correctly,
+    left instead to reranker noise. Only swaps the top two when they're
+    within _RECENCY_TIEBREAK_EPSILON of each other AND both have a
+    parseable date - deterministic date arithmetic over a document's own
+    real timestamp, matching this project's existing "deterministic over
+    LLM for date reasoning" philosophy, not a new judgment call. Leaves
+    everything else (a clear score gap, or either candidate lacking a
+    date) exactly as reranked."""
+    if len(ranked) < 2:
+        return ranked
+    top, second = ranked[0], ranked[1]
+    if abs(top[1] - second[1]) > _RECENCY_TIEBREAK_EPSILON:
+        return ranked
+    top_date, second_date = _row_date(top[0]), _row_date(second[0])
+    if top_date is None or second_date is None:
+        return ranked
+    if second_date > top_date:
+        return [second, top, *ranked[2:]]
+    return ranked
+
+
 def retrieve(
     store: IndexStore,
     question: str,
@@ -114,15 +162,24 @@ def retrieve(
     source: str | None = None,
     excluded_sources: frozenset[str] | None = None,
     logger: logging.Logger | None = None,
-    initial_pool_k: int = 25,
-    rerank_pool: int = 10,
+    initial_pool_k: int = 60,
+    rerank_pool: int = 20,
     top_k: int = 5,
     abstain_threshold: float = 0.5,
 ) -> RetrievalResult:
     """the full retrieval pipeline: hybrid search for an initial candidate
     pool, resolve/date-filter/dedup to parent-level candidates, rerank on
     parent_text (the same text that grounds the final answer), keep the
-    top_k, and abstain if the single best match isn't confident enough."""
+    top_k, and abstain if the single best match isn't confident enough.
+
+    initial_pool_k/rerank_pool were widened (25->60, 10->20) after real
+    testing found genuinely-indexed content (a CV with 5 real matching
+    chunks) never reaching the reranker at all at the old, narrower pool
+    size on a real, multi-thousand-chunk index - a mechanical fix for "not
+    enough candidates considered," not a fix for a true vocabulary gap
+    (a document sharing no words/concepts with the question at all), which
+    needs actual measurement (an eval harness, not built yet) to safely
+    address."""
     fused = hybrid_search(store, question, question_embedding, k=initial_pool_k, source=source)
     if not fused:
         return RetrievalResult(chunks=[], confidence=0.0, abstained=True, abstain_reason="no_candidates")
@@ -138,6 +195,7 @@ def retrieve(
     scores = rerank(reranker, question, [row["parent_text"] for row in pool])
 
     ranked = sorted(zip(pool, scores), key=lambda item: item[1], reverse=True)[:top_k]
+    ranked = _break_near_ties_by_recency(ranked)
 
     chunks = [row_to_chunk(row, score) for row, score in ranked]
 
