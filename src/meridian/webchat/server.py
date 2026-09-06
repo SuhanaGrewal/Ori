@@ -272,8 +272,26 @@ def query(body: QueryBody) -> dict[str, Any]:
         answer = build_abstain_message(body.question, result.abstain_reason or "low_confidence")
         return {"id": answer_id, "question": body.question, "answer": answer, "citations": []}
 
-    answer_text = result.answer if result.answer is not None else "LLM not configured - showing retrieval only."
-    citations = [chunk_to_citation(chunk) for chunk in cited_chunks(answer_text, result.chunks)]
+    if result.answer is None:
+        # no LLM configured - these are the raw retrieved candidates
+        # themselves, not a synthesized claim, so showing the full pool
+        # is exactly right here (there's no "what did the answer actually
+        # reference" question to ask).
+        answer_text = "LLM not configured - showing retrieval only."
+        citations = [chunk_to_citation(chunk) for chunk in result.chunks]
+    else:
+        # a real generated answer with zero [N] markers is NOT the same
+        # situation as "no LLM configured" - it's how the model looks
+        # when it correctly reviews low-confidence candidates and says
+        # none of them are relevant (found live: "whats up w wix"
+        # retrieved unrelated emails, the model correctly said "the
+        # context doesn't mention Wix at all", but the API still showed
+        # those unrelated emails as "citations" because cited_chunks()'s
+        # retrieval-only fallback used to fire on ANY uncited answer, not
+        # just the true no-LLM case above). An uncited real answer gets
+        # no citations, not a guess at which candidate it meant.
+        answer_text = result.answer
+        citations = [chunk_to_citation(chunk) for chunk in cited_chunks(answer_text, result.chunks, fallback_to_full_pool=False)]
     return {"id": answer_id, "question": body.question, "answer": answer_text, "citations": citations}
 
 

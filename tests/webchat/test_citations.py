@@ -33,3 +33,28 @@ def test_cited_chunks_ignores_duplicate_and_out_of_range_markers():
 
 def test_cited_chunks_empty_pool_returns_empty():
     assert cited_chunks("some text [1]", []) == []
+
+
+def test_cited_chunks_with_fallback_disabled_returns_empty_when_nothing_cited():
+    # real bug: "whats up w wix" retrieved unrelated emails (a laptop
+    # thread, a return QR code), and the model correctly said "the
+    # context doesn't mention Wix at all" - a real, uncited answer, not
+    # retrieval-only mode. The old unconditional fallback still showed
+    # those unrelated emails as "citations" for that denial. A caller with
+    # a real generated answer should get zero citations here, not a guess
+    # at which unrelated candidate it meant.
+    chunks = ["chunk-1", "chunk-2"]
+
+    result = cited_chunks(
+        "The context blocks don't mention Wix at all.", chunks, fallback_to_full_pool=False
+    )
+
+    assert result == []
+
+
+def test_cited_chunks_with_fallback_disabled_still_narrows_when_something_cited():
+    chunks = ["chunk-1", "chunk-2", "chunk-3"]
+
+    result = cited_chunks("The answer is X [2].", chunks, fallback_to_full_pool=False)
+
+    assert result == ["chunk-2"]

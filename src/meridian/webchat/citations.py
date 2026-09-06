@@ -24,7 +24,7 @@ def chunk_to_citation(chunk: Any) -> dict[str, str]:
     return {"label": chunk.source, "detail": ""}
 
 
-def cited_chunks(answer_text: str, chunks: list[Any]) -> list[Any]:
+def cited_chunks(answer_text: str, chunks: list[Any], *, fallback_to_full_pool: bool = True) -> list[Any]:
     """narrows the full retrieved pool down to only the chunks the answer
     actually cited by bracket number, e.g. "[1]" or "[1][2]" - found live:
     a question with several similarly-worded real candidates (three
@@ -38,10 +38,20 @@ def cited_chunks(answer_text: str, chunks: list[Any]) -> list[Any]:
     stays unchanged. This only narrows what the webchat JSON API's
     citation pills show, since showing an uncited, unrelated item as a
     "source" is actively misleading in a UI that presents citations as
-    exactly where an answer came from. Falls back to the full pool if the
-    answer cited nothing by number (e.g. a very short answer, or
-    retrieval-only mode) so a caller never loses every citation outright."""
+    exactly where an answer came from.
+
+    fallback_to_full_pool controls what "cited nothing by number" means -
+    true for retrieval-only mode (no LLM configured, so the "answer" is
+    just the raw candidates being displayed, not a claim to check against
+    them). Callers with a REAL generated answer should pass False: an
+    uncited real answer is exactly how the model looks when it correctly
+    reviews low-confidence candidates and says none of them are relevant
+    (found live: "whats up w wix" retrieved unrelated emails, the model
+    correctly said "the context doesn't mention Wix at all", but the old
+    unconditional fallback still showed those unrelated emails as
+    "citations" for that denial) - showing the full pool there is
+    actively wrong, not a safe default."""
     cited_numbers = {int(n) for n in _CITATION_MARKER.findall(answer_text)}
     if not cited_numbers:
-        return chunks
+        return chunks if fallback_to_full_pool else []
     return [chunk for i, chunk in enumerate(chunks, start=1) if i in cited_numbers]
