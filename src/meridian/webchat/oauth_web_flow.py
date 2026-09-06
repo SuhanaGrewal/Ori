@@ -33,7 +33,15 @@ def build_web_flow(client_id: str, client_secret: str, redirect_uri: str) -> Flo
             "redirect_uris": [redirect_uri],
         }
     }
-    flow = Flow.from_client_config(client_config, scopes=WEB_FLOW_SCOPES)
+    # PKCE is off: google-auth-oauthlib auto-generates a code_verifier by
+    # default, but that verifier only lives on the in-memory Flow instance
+    # that built the authorization URL - the callback builds a separate
+    # Flow instance (a fresh request, possibly even a fresh process) with
+    # no way to recover it, so token exchange would always fail with
+    # "invalid_grant: Missing code verifier." PKCE exists to protect
+    # public clients that can't hold a secret; this one holds
+    # client_secret, so it isn't needed here.
+    flow = Flow.from_client_config(client_config, scopes=WEB_FLOW_SCOPES, autogenerate_code_verifier=False)
     flow.redirect_uri = redirect_uri
     return flow
 
