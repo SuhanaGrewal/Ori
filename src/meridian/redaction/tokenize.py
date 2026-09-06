@@ -89,7 +89,20 @@ def tokenize_for_external_call(
         if span.entity_type in HARD_SECRET_ENTITIES:
             labeled.append((span, None))
             continue
-        value_key = (span.entity_type, text[span.start : span.end])
+        # casefold, not the raw substring: the same real person/email
+        # written in different casing (a formal email header's "Billy
+        # Wardrop" vs. a casually-typed question's "billy wardrop") is
+        # still the same entity - confirmed via real testing this was
+        # getting two different placeholder numbers, so the model saw two
+        # unrelated people and could deny one was mentioned while citing
+        # the other as a source for the exact same person. The mapping
+        # still stores whichever occurrence's exact casing was leftmost in
+        # the text (same behavior already used for identical-value dedup
+        # above), so untokenize() restores real, correctly-cased text -
+        # just not necessarily matching every occurrence's own original
+        # casing, an acceptable cosmetic tradeoff for not fragmenting one
+        # person's identity across multiple placeholders.
+        value_key = (span.entity_type, text[span.start : span.end].casefold())
         if value_key in value_to_idx:
             idx = value_to_idx[value_key]
         else:

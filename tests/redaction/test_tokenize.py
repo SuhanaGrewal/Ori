@@ -149,6 +149,55 @@ def test_tokenize_repeated_value_still_counts_every_occurrence_in_entity_counts(
     assert result.entity_counts == {"PERSON": 2}
 
 
+def test_tokenize_reuses_placeholder_across_case_difference():
+    # real bug, reproduced 3 separate ways via live CEO-persona testing:
+    # a casually-typed lowercase question ("billy wardrop") and a formal
+    # email header's capitalized sender ("Billy Wardrop") were getting
+    # DIFFERENT placeholder numbers purely from casing, exactly the
+    # "two unrelated people" failure test_tokenize_reuses_placeholder_
+    # for_identical_repeated_value already fixed for exact duplicates -
+    # this is the same bug, just triggered by case rather than an exact
+    # match. The model then denied the lowercase mention was in its
+    # context while citing the capitalized one as a completely separate
+    # person - self-contradicting in the same response. Confirmed
+    # end-to-end with the real presidio analyzer before this fix (both
+    # "billy wardrop" and "Billy Wardrop" ARE detected as PERSON spans
+    # regardless of case - the bug was purely in placeholder assignment,
+    # not entity detection).
+    text = "who is billy wardrop\n\nfrom: Billy Wardrop"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=7, end=20),
+            Span(entity_type="PERSON", start=28, end=41),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "who is <PERSON_1>\n\nfrom: <PERSON_1>"
+    assert result.mapping == {"<PERSON_1>": "billy wardrop"}
+
+
+def test_tokenize_reuses_placeholder_across_case_difference_for_email_address():
+    # same bug, confirmed a second way in real testing: a lowercase email
+    # address in the question vs. the capitalized address in the actual
+    # message header.
+    text = "anything from billy.wardrop@ed.ac.uk\n\nfrom: Billy.Wardrop@ed.ac.uk"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="EMAIL_ADDRESS", start=14, end=36),
+            Span(entity_type="EMAIL_ADDRESS", start=44, end=66),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == (
+        "anything from <EMAIL_ADDRESS_1>\n\nfrom: <EMAIL_ADDRESS_1>"
+    )
+    assert result.mapping == {"<EMAIL_ADDRESS_1>": "billy.wardrop@ed.ac.uk"}
+
+
 def test_tokenize_distinct_values_of_same_type_still_get_separate_placeholders():
     text = "Billy Wardrop met Billy Smith"
     analyzer = _FakeAnalyzer(
