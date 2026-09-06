@@ -200,6 +200,16 @@ def test_retrieve_recency_tiebreak_compares_whole_near_tied_group_not_just_top_t
     result = retrieve(store, "the charge", query_vec, reranker=reranker)
 
     assert result.chunks[0].source_item_id == "receipt-most-recent"
+    # real bug found via LIVE re-verification AFTER this fix first
+    # shipped: all three receipts score well below the 0.5 abstain
+    # threshold (~0.30/0.28/0.21 here), so a resolved tiebreak that still
+    # left `abstained=True` handed the decision to ask()'s separate,
+    # non-deterministic per-candidate LLM relevance tiebreak - which
+    # iterated the same three candidates and could reject the one this
+    # recency check just chose, silently falling back to an older one.
+    # A real, resolved near-tie is its own confidence signal and should
+    # not need to survive a second, less predictable check.
+    assert result.abstained is False
 
 
 def test_retrieve_does_not_override_a_clear_score_gap(tmp_path):

@@ -349,6 +349,57 @@ def test_ask_low_confidence_tiebreak_checks_every_candidate_not_just_the_top_one
     assert len(client.messages.calls) == 3
 
 
+def test_ask_recency_tiebreak_skips_the_llm_relevance_cascade_entirely(tmp_path):
+    # real bug found via LIVE re-verification, discovered only after the
+    # retrieval-level recency tiebreak (see test_retrieval.py) had already
+    # shipped: three near-identical real receipts all scored well below
+    # the abstain threshold, so even after retrieve() deterministically
+    # reordered the most-recent one to the front, ask()'s abstain check
+    # still saw a low raw score and ran the separate per-candidate LLM
+    # relevance tiebreak below - a real, non-deterministic Claude call
+    # that iterated the same three candidates and could reject the
+    # recency-preferred one, silently falling back to an older one. Same
+    # question, different wrong answer each time - the exact symptom the
+    # recency tiebreak was built to remove, reintroduced by a second
+    # mechanism running after it. retrieve() no longer abstains when it
+    # resolves a real near-tie this way, so this cascade must never even
+    # start: only one LLM call (the final answer) should happen.
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "receipt-oldest",
+        [ChunkRecord(text="receipt oldest", parent_text="receipt oldest", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-01-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-middle",
+        [ChunkRecord(text="receipt middle", parent_text="receipt middle", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-04-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-most-recent",
+        [ChunkRecord(text="receipt most recent", parent_text="receipt most recent", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-09-01T00:00:00Z"},
+    )
+    reranker = _FakeReranker({
+        "receipt oldest": -0.85, "receipt middle": -0.94, "receipt most recent": -1.32,
+    })
+    client = _FakeMultiReplyClient(["The most recent charge was in September [1]."])
+
+    result = ask(
+        "the charge", store=store, embedder=_FakeEmbedder(query_vec), reranker=reranker,
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+    )
+
+    assert result.abstained is False
+    # not narrowed to a single chunk - unlike the LLM tiebreak, skipping
+    # it leaves the full recency-ordered candidate list intact, same as
+    # any other non-abstained result
+    assert result.chunks[0].source_item_id == "receipt-most-recent"
+    # exactly one LLM call (the final answer) - no tiebreak calls at all
+    assert len(client.messages.calls) == 1
+
+
 def test_ask_forward_looking_query_falls_back_to_past_match_when_nothing_upcoming(tmp_path):
     # "next week" (2024-06-17 to 2024-06-24) excludes this past-dated
     # chunk entirely - the fallback (unfiltered) search should still find

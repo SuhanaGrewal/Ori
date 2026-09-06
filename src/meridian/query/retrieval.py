@@ -131,7 +131,7 @@ def _row_date(row: sqlite3.Row):
 
 def _break_near_ties_by_recency(
     ranked: list[tuple[sqlite3.Row, float]],
-) -> list[tuple[sqlite3.Row, float]]:
+) -> tuple[list[tuple[sqlite3.Row, float]], bool]:
     """found live: asking the identical question several times against
     three near-identical real receipts (from two different Anthropic
     billing entities, worded slightly differently) picked a different one
@@ -152,24 +152,29 @@ def _break_near_ties_by_recency(
     matching this project's existing "deterministic over LLM for date
     reasoning" philosophy, not a new judgment call. A single candidate
     with no close competitors, or one where no two candidates in the tied
-    group have parseable dates, is left exactly as reranked."""
+    group have parseable dates, is left exactly as reranked.
+
+    Returns whether a swap actually happened alongside the (possibly
+    reordered) list - retrieve() uses that to know a real, resolved near-
+    tie was found here, as opposed to one genuinely low-confidence
+    candidate with nothing else close to it."""
     if len(ranked) < 2:
-        return ranked
+        return ranked, False
 
     top_score = ranked[0][1]
     tied = [item for item in ranked if abs(item[1] - top_score) <= _RECENCY_TIEBREAK_EPSILON]
     if len(tied) < 2:
-        return ranked
+        return ranked, False
 
     dated = [(item, date) for item in tied if (date := _row_date(item[0])) is not None]
     if len(dated) < 2:
-        return ranked
+        return ranked, False
 
     most_recent, _ = max(dated, key=lambda pair: pair[1])
     if most_recent is ranked[0]:
-        return ranked
+        return ranked, False
 
-    return [most_recent, *(item for item in ranked if item is not most_recent)]
+    return [most_recent, *(item for item in ranked if item is not most_recent)], True
 
 
 def retrieve(
@@ -215,12 +220,28 @@ def retrieve(
     scores = rerank(reranker, question, [row["parent_text"] for row in pool])
 
     ranked = sorted(zip(pool, scores), key=lambda item: item[1], reverse=True)[:top_k]
-    ranked = _break_near_ties_by_recency(ranked)
+    ranked, recency_tiebroken = _break_near_ties_by_recency(ranked)
 
     chunks = [row_to_chunk(row, score) for row, score in ranked]
 
     top_confidence = chunks[0].confidence if chunks else 0.0
-    abstained = top_confidence < abstain_threshold
+    # a resolved recency tiebreak is its own confidence signal: it only
+    # fires when 2+ candidates independently scored close enough to the
+    # top to be noise AND both carry a real date - i.e. the reranker
+    # already judged them all plausibly relevant, and recency picked
+    # which one. Abstaining anyway (because the *chosen* one's own raw
+    # score happens to sit below the threshold) would hand the decision
+    # to ask()'s downstream per-candidate LLM relevance tiebreak instead -
+    # a real, non-deterministic Claude call that iterates the same
+    # candidates in whatever order they arrive and can reject the one
+    # this recency check just deterministically chose, falling through to
+    # an older one. Confirmed live: exactly this happened, silently
+    # reintroducing the "same question, different wrong answer" bug this
+    # tiebreak exists to remove. Trusting the tiebreak's own resolution
+    # avoids relitigating it through a second, less predictable mechanism
+    # built for a different failure mode (a single ambiguous candidate,
+    # not several genuinely-close real ones).
+    abstained = top_confidence < abstain_threshold and not recency_tiebroken
 
     if logger is not None:
         logger.info(
