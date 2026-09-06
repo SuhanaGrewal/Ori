@@ -8,6 +8,7 @@ from meridian.ingestion.gmail.message_parser import ParsedMessage
 from meridian.ingestion.gmail.store import GmailStore
 from meridian.ingestion.local_files.store import NotesStore
 from meridian.query.router import classify_intent, route
+from meridian.query.router_prompt import CLASSIFY_SYSTEM_PROMPT
 from meridian.reminders.store import ReminderStore
 from meridian.replies.store import DraftStore
 
@@ -52,6 +53,16 @@ class _FakeTextBlock:
 class _FakeClient:
     def __init__(self, replies):
         self.messages = _FakeMessages(replies)
+
+
+def test_classify_prompt_distinguishes_scoped_schedule_questions_from_broad_summary():
+    # real bug: "what do i have on this week" was classified BROAD_SUMMARY
+    # and answered with a giant unscoped dump of unrelated recent emails
+    # (Wix billing, PAN OTPs, promos) instead of a calendar answer -
+    # BROAD_SUMMARY's own examples ("what's been happening", "what's new")
+    # read too similarly to a schedule question for the classifier to
+    # reliably tell them apart without an explicit carve-out.
+    assert "what do i have on this week" in CLASSIFY_SYSTEM_PROMPT.lower()
 
 
 def test_classify_intent_stale_threads():
