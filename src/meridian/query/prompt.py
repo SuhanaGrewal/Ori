@@ -44,7 +44,17 @@ SYSTEM_PROMPT = (
     "content allows it. Bold (using **double asterisks**) the single most "
     "important concrete detail - a number, date, name, status, or amount - "
     "so it's scannable at a glance; don't bold whole sentences or more than "
-    "a couple of details per answer."
+    "a couple of details per answer.\n\n"
+    "If a recent conversation is included below, a short follow-up "
+    "question (e.g. \"and where?\", \"when?\") is almost always still "
+    "about the SAME item the conversation was just discussing - stay "
+    "scoped to that one item's own context block(s) rather than pulling "
+    "in a different context block just because it shares a generic word "
+    "(like \"delivery\" or \"payment\") with the follow-up. If that "
+    "specific item's own context doesn't mention the thing being asked "
+    "(a date, a location, etc.), say so plainly - e.g. \"the email about "
+    "X doesn't mention a delivery date\" - instead of substituting an "
+    "unrelated item's answer."
 )
 
 
