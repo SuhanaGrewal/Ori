@@ -738,3 +738,25 @@ def test_route_calendar_conflicts_defaults_to_today_with_no_date_phrase(tmp_path
 
     assert "Yes" in result.answer
     assert "2024-06-10" in result.answer
+
+
+def test_route_calendar_conflicts_reports_the_full_span_for_a_multi_day_range(tmp_path):
+    # real bug found via LIVE testing: "did I have overlapping meetings
+    # this week" (a 7-day range) reported "No calendar events found for
+    # 2024-06-10" - technically the range's start date, but read as if
+    # only that one day had actually been checked, when the whole week
+    # was. A single-day question ("today") should still read as just
+    # that one date, not a misleadingly wide "day to day" span.
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings this week", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    # _NOW is 2024-06-10, a Monday - "this week" spans Mon 06-10 to Sun 06-16
+    assert "2024-06-10 to 2024-06-16" in result.answer

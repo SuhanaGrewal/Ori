@@ -367,6 +367,16 @@ def _check_calendar_conflicts(text: str, calendar_store: Any, *, now: datetime) 
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         date_range = start, start + timedelta(days=1)
     start, end = date_range
+    # end is exclusive - a single day (start, start+1day) still reads as
+    # just that one date; a wider range ("this week") reads as a span.
+    # Found live: "this week" answered "No calendar events found for
+    # 2026-08-31" - technically the range's start, but read as if only
+    # that one day had been checked, when the whole week actually was.
+    period_label = (
+        start.date().isoformat()
+        if end - start <= timedelta(days=1)
+        else f"{start.date().isoformat()} to {(end - timedelta(days=1)).date().isoformat()}"
+    )
 
     events = []
     for row in calendar_store.list_events_upcoming(start.isoformat(), end.isoformat()):
@@ -380,7 +390,7 @@ def _check_calendar_conflicts(text: str, calendar_store: Any, *, now: datetime) 
         events.append((row["summary"] or "(untitled event)", event_start, event_end))
 
     if not events:
-        return f"No calendar events found for {start.date().isoformat()}."
+        return f"No calendar events found for {period_label}."
 
     conflicts = [
         (events[i], events[j])
@@ -390,9 +400,9 @@ def _check_calendar_conflicts(text: str, calendar_store: Any, *, now: datetime) 
     ]
 
     if not conflicts:
-        return f"No overlapping meetings found among {len(events)} event(s) on {start.date().isoformat()}."
+        return f"No overlapping meetings found among {len(events)} event(s) for {period_label}."
 
-    lines = [f"Yes, {len(conflicts)} overlap(s) found on {start.date().isoformat()}:"]
+    lines = [f"Yes, {len(conflicts)} overlap(s) found for {period_label}:"]
     for (name_a, start_a, end_a), (name_b, start_b, end_b) in conflicts:
         lines.append(
             f"'{name_a}' ({start_a.strftime('%H:%M')}-{end_a.strftime('%H:%M')}) overlaps "
