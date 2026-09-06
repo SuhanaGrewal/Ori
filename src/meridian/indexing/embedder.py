@@ -12,8 +12,17 @@ def build_embedder(model_name: str = DEFAULT_MODEL) -> SentenceTransformer:
     huggingface cache on first use. comparatively expensive (real seconds
     plus a one-time download) - callers should build one instance per
     process and reuse it across every embed_chunks() call, same injection
-    pattern as build_analyzer_engine() in redaction."""
-    return SentenceTransformer(model_name)
+    pattern as build_analyzer_engine() in redaction.
+
+    device="cpu" is deliberate: sentence-transformers auto-selects Apple
+    Silicon's MPS (Metal) backend otherwise, which crashed this exact
+    webchat server outright mid-query with a native
+    "failed assertion _status < MTLCommandBufferStatusCommitted" abort
+    (SIGABRT) - not a Python exception, unrecoverable, and it took the
+    whole process down. This model is small enough that CPU inference is
+    still fast; trading a little speed for not randomly crashing the
+    server is the right tradeoff here."""
+    return SentenceTransformer(model_name, device="cpu")
 
 
 def embed_chunks(embedder: Any, texts: list[str], *, batch_size: int = 32) -> list[list[float]]:

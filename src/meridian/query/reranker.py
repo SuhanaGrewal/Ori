@@ -12,8 +12,13 @@ def build_reranker(model_name: str = DEFAULT_RERANKER_MODEL) -> CrossEncoder:
     """loads the cross-encoder reranking model, downloading it on first use.
     comparatively expensive - callers should build one instance per process
     and reuse it, same injection pattern as build_embedder()/
-    build_analyzer_engine()."""
-    return CrossEncoder(model_name)
+    build_analyzer_engine().
+
+    device="cpu" for the same reason as build_embedder(): letting
+    sentence-transformers auto-pick Apple Silicon's MPS backend crashed
+    the webchat server with a native Metal command-buffer assertion abort
+    during a real query - a small cross-encoder is still fast on CPU."""
+    return CrossEncoder(model_name, device="cpu")
 
 
 def sigmoid(x: float) -> float:
