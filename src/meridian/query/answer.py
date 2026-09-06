@@ -189,12 +189,24 @@ def ask(
         # (low_confidence / no_upcoming_match) - "no_candidates" and
         # "no_candidates_in_date_range" return an empty chunk list, so
         # there's nothing to tiebreak and this is skipped for those.
-        top_chunk = result.chunks[0]
-        if _llm_confirms_relevance(
-            effective_question, top_chunk.parent_text, client=client, model=model, analyzer=analyzer,
-            logger=logger, audit_log_dir=audit_log_dir,
-        ):
-            result = replace(result, abstained=False, abstain_reason=None, chunks=[top_chunk])
+        #
+        # Checks every candidate in ranked order, not just chunks[0] - a
+        # heavily typo-laden question (confirmed via real testing: "wen
+        # do i hav to droop off my laptp") can make the reranker score
+        # every candidate near-zero, at which point the "top" one by
+        # score is essentially arbitrary noise. The genuinely correct
+        # email was sitting a few slots down in that same low-confidence
+        # pool; checking only rank 1 missed it and abstained even though
+        # the right answer was right there. Stops at the first candidate
+        # the LLM actually confirms, so cost only grows on the rare
+        # abstaining path, and only as far as it takes to find one.
+        for candidate in result.chunks:
+            if _llm_confirms_relevance(
+                effective_question, candidate.parent_text, client=client, model=model, analyzer=analyzer,
+                logger=logger, audit_log_dir=audit_log_dir,
+            ):
+                result = replace(result, abstained=False, abstain_reason=None, chunks=[candidate])
+                break
 
     if result.abstained and history:
         recovered = _recover_previous_grounding(history, store=store)

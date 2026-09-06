@@ -289,6 +289,48 @@ def test_ask_low_confidence_tiebreak_confirms_yes_answers_anyway(tmp_path):
     assert len(client.messages.calls) == 2
 
 
+def test_ask_low_confidence_tiebreak_checks_every_candidate_not_just_the_top_one(tmp_path):
+    # real bug, found via testing a heavily typo-laden question ("wen do
+    # i hav to droop off my laptp"): the reranker scored every candidate
+    # low enough to abstain, and the tiebreak used to check only
+    # chunks[0] - the highest-scored candidate. That candidate is
+    # essentially noise when everything is scored this low; the
+    # genuinely correct email can easily rank below it and never get
+    # checked at all.
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "msg-unrelated",
+        [ChunkRecord(text="unrelated exam gossip", parent_text="unrelated exam gossip", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "x", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "msg-billy",
+        [ChunkRecord(
+            text="the laptop drop-off is at the office", parent_text="the laptop drop-off is at the office",
+            position=0, is_own_parent=True,
+        )],
+        [query_vec], {"subject": "IT Kit", "sender": "billy@example.com", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    # both below the abstain threshold, but "unrelated" scores higher so
+    # it ranks first - exactly the "wrong chunk happens to rank above the
+    # right one once scores are this noisy" shape of the real bug.
+    reranker = _FakeReranker({"unrelated exam gossip": -1.0, "the laptop drop-off is at the office": -2.0})
+    client = _FakeMultiReplyClient(["NO", "YES", "You need to drop it off at the office [1]."])
+
+    result = ask(
+        "wen do i hav to droop off my laptp",
+        store=store, embedder=_FakeEmbedder(query_vec), reranker=reranker,
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+    )
+
+    assert result.abstained is False
+    assert result.answer == "You need to drop it off at the office [1]."
+    assert len(result.chunks) == 1
+    assert result.chunks[0].source_item_id == "msg-billy"
+    assert len(client.messages.calls) == 3
+
+
 def test_ask_forward_looking_query_falls_back_to_past_match_when_nothing_upcoming(tmp_path):
     # "next week" (2024-06-17 to 2024-06-24) excludes this past-dated
     # chunk entirely - the fallback (unfiltered) search should still find
