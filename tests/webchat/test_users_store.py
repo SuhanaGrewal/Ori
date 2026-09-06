@@ -1,3 +1,4 @@
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
 from meridian.webchat.users_store import WebUsersStore
@@ -121,6 +122,52 @@ def test_store_usable_from_a_different_thread_than_it_was_created_on(tmp_path):
         profile = executor.submit(store.get_user_profile, user_id).result()
 
     assert profile["name"] == "Jordan Kim"
+
+
+def test_new_user_starts_with_not_started_sync_status(tmp_path):
+    store = WebUsersStore(tmp_path / "users.db")
+    user_id = store.create_user("Jordan Kim", "1990-01-01")
+
+    assert store.get_user_profile(user_id)["syncStatus"] == "not_started"
+
+
+def test_set_sync_status_updates_profile(tmp_path):
+    store = WebUsersStore(tmp_path / "users.db")
+    user_id = store.create_user("Jordan Kim", "1990-01-01")
+
+    store.set_sync_status(user_id, "syncing")
+    assert store.get_user_profile(user_id)["syncStatus"] == "syncing"
+
+    store.set_sync_status(user_id, "complete")
+    assert store.get_user_profile(user_id)["syncStatus"] == "complete"
+
+
+def test_migrates_a_pre_existing_database_missing_sync_status_column(tmp_path):
+    # regression test: this session's real webchat_users.db (and anyone
+    # else's already-running deployment) was created before sync_status
+    # existed - CREATE TABLE IF NOT EXISTS never retrofits a new column
+    # onto a table that's already on disk, so without the ALTER TABLE
+    # migration in __init__, opening an old database would either crash
+    # or silently have no sync_status column at all.
+    db_path = tmp_path / "old_users.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE users (
+            user_id TEXT PRIMARY KEY, name TEXT NOT NULL, dob TEXT, email TEXT,
+            scopes_json TEXT NOT NULL DEFAULT '[]', connected_at TEXT, created_at TEXT NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        "INSERT INTO users (user_id, name, scopes_json, created_at) VALUES ('user_old', 'Alex', '[]', '2026-01-01')"
+    )
+    conn.commit()
+    conn.close()
+
+    store = WebUsersStore(db_path)
+
+    assert store.get_user_profile("user_old")["syncStatus"] == "not_started"
 
 
 def test_users_are_isolated_from_each_other(tmp_path):

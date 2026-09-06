@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -31,6 +31,7 @@ from meridian.redaction.analyzer import build_analyzer_engine
 from meridian.reminders.store import ReminderStore
 from meridian.replies.store import DraftStore
 from meridian.webchat.digest_summary import build_digest_items
+from meridian.webchat.initial_sync import run_initial_sync
 from meridian.webchat.oauth_web_flow import (
     build_web_flow,
     exchange_code_for_credentials,
@@ -117,7 +118,9 @@ def google_start(user_id: str = Query(...)) -> RedirectResponse:
 
 
 @app.get(GOOGLE_CALLBACK_PATH)
-def google_callback(code: str = Query(...), state: str = Query(...)) -> RedirectResponse:
+def google_callback(
+    background_tasks: BackgroundTasks, code: str = Query(...), state: str = Query(...)
+) -> RedirectResponse:
     user_id = state
     _require_user(user_id)
 
@@ -138,6 +141,15 @@ def google_callback(code: str = Query(...), state: str = Query(...)) -> Redirect
     # means by "granted".
     granted_readonly = [scope for scope in (credentials.scopes or []) if scope in READONLY_SCOPES]
     _users.complete_google_consent(user_id, email=email, granted_scopes=granted_readonly)
+
+    # runs after this redirect is sent, not before - a full first-time
+    # Gmail/Calendar/Docs backfill can take a while, and the user
+    # shouldn't sit on a blank tab waiting for it. The frontend can poll
+    # GET /api/auth/users/{user_id} and watch syncStatus go
+    # not_started -> syncing -> complete.
+    background_tasks.add_task(
+        run_initial_sync, user_id, config=_config, users=_users, embedder=_embedder, logger=_logger
+    )
 
     session_token = _users.create_session(user_id)
     return RedirectResponse(f"{FRONTEND_ORIGIN}/dashboard?session={session_token}")

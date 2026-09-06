@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     email        TEXT,
     scopes_json  TEXT NOT NULL DEFAULT '[]',
     connected_at TEXT,
-    created_at   TEXT NOT NULL
+    created_at   TEXT NOT NULL,
+    sync_status  TEXT NOT NULL DEFAULT 'not_started'
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -65,6 +66,15 @@ class WebUsersStore:
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        try:
+            # CREATE TABLE IF NOT EXISTS never adds a column to a table
+            # that already existed on disk before this field was added -
+            # this migrates any pre-existing users.db in place. Fresh
+            # databases already have the column from _SCHEMA above, so
+            # this raises "duplicate column" there and is ignored.
+            self._conn.execute("ALTER TABLE users ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'not_started'")
+        except sqlite3.OperationalError:
+            pass
         self._conn.commit()
 
     def close(self) -> None:
@@ -93,6 +103,7 @@ class WebUsersStore:
             "email": row["email"],
             "scopes": json.loads(row["scopes_json"]),
             "connectedAt": row["connected_at"],
+            "syncStatus": row["sync_status"],
             "auditLog": self.list_audit_events(user_id),
         }
 
@@ -118,6 +129,10 @@ class WebUsersStore:
         with self._conn:
             self._conn.execute("UPDATE users SET name = ?, dob = ? WHERE user_id = ?", (name, dob, user_id))
         self.add_audit_event(user_id, "profile_update", "Profile details updated")
+
+    def set_sync_status(self, user_id: str, status: str) -> None:
+        with self._conn:
+            self._conn.execute("UPDATE users SET sync_status = ? WHERE user_id = ?", (status, user_id))
 
     def add_audit_event(self, user_id: str, event_type: str, detail: str) -> None:
         with self._conn:
