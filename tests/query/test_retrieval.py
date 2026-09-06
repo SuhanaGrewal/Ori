@@ -165,6 +165,43 @@ def test_retrieve_breaks_near_tied_scores_by_recency(tmp_path):
     assert result.chunks[0].source_item_id == "receipt-new"
 
 
+def test_retrieve_recency_tiebreak_compares_whole_near_tied_group_not_just_top_two(tmp_path):
+    # real bug found via LIVE re-verification, not just the unit test
+    # above: with three real near-identical receipts, the true
+    # most-recent one scored ~0.09 below the top candidate, while a
+    # genuinely-older one sat right next to the top at ~0.02 below. An
+    # earlier version of this fix only compared the top two ranked
+    # candidates and "fixed" the wrong pair - promoting the middle
+    # receipt instead of the actual most recent one, since the real
+    # most-recent candidate wasn't even in slot #2 to be compared. Raw
+    # scores below reproduce that exact real gap pattern (sigmoid(-0.85)
+    # ~= 0.30, sigmoid(-0.94) ~= 0.28, sigmoid(-1.32) ~= 0.21).
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "receipt-oldest",
+        [ChunkRecord(text="receipt oldest", parent_text="receipt oldest", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-01-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-middle",
+        [ChunkRecord(text="receipt middle", parent_text="receipt middle", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-04-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-most-recent",
+        [ChunkRecord(text="receipt most recent", parent_text="receipt most recent", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-09-01T00:00:00Z"},
+    )
+    reranker = _FakeReranker({
+        "receipt oldest": -0.85, "receipt middle": -0.94, "receipt most recent": -1.32,
+    })
+
+    result = retrieve(store, "the charge", query_vec, reranker=reranker)
+
+    assert result.chunks[0].source_item_id == "receipt-most-recent"
+
+
 def test_retrieve_does_not_override_a_clear_score_gap(tmp_path):
     store = IndexStore(tmp_path / "index.db")
     query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
