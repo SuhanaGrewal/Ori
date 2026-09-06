@@ -65,6 +65,19 @@ def test_classify_prompt_distinguishes_scoped_schedule_questions_from_broad_summ
     assert "what do i have on this week" in CLASSIFY_SYSTEM_PROMPT.lower()
 
 
+def test_classify_prompt_distinguishes_awkwardly_worded_questions_from_reminders():
+    # real bug: "laptop drop off when do i need to" (a question with
+    # scrambled word order, no leading question word) was classified
+    # REMINDER instead of GENERAL - it silently created an unwanted
+    # tracked reminder and hallucinated an unrelated free calendar slot,
+    # instead of just answering with the real drop-off date already in
+    # the account. The properly-ordered version of the same question
+    # ("when do i have to drop off my laptop") already worked correctly,
+    # confirming this was specifically a classification miss on unusual
+    # word order, not a retrieval problem.
+    assert "laptop drop off when do i need to" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
 def test_classify_intent_stale_threads():
     client = _FakeClient(["STALE_THREADS"])
 
