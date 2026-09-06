@@ -39,8 +39,8 @@ def main() -> None:
     print(
         f"Gmail sync complete ({stats.sync_type}): "
         f"{stats.messages_fetched} fetched, {stats.messages_updated} updated, "
-        f"{stats.messages_deleted} deleted, {stats.parse_failures} parse failures "
-        f"in {stats.duration_ms:.0f}ms."
+        f"{stats.messages_deleted} deleted, {stats.parse_failures} parse failures, "
+        f"{stats.fetch_failures} fetch failures in {stats.duration_ms:.0f}ms."
     )
 
 

@@ -29,7 +29,7 @@ def retry_with_backoff(
             if attempt >= max_attempts:
                 if logger is not None:
                     logger.error(
-                        f"{operation} exhausted retries after {attempt} attempts",
+                        f"{operation} exhausted retries after {attempt} attempts ({exc})",
                         extra={"operation": operation, "status": "error", "duration_ms": 0},
                     )
                 raise RetryExhaustedError(
@@ -39,7 +39,7 @@ def retry_with_backoff(
             delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
             if logger is not None:
                 logger.warning(
-                    f"{operation} attempt {attempt} failed, retrying in {delay}s",
+                    f"{operation} attempt {attempt} failed ({exc}), retrying in {delay}s",
                     extra={"operation": operation, "status": "retry", "duration_ms": 0},
                 )
             time.sleep(delay)

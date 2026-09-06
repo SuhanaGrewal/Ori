@@ -8,6 +8,7 @@ from googleapiclient.errors import HttpError
 
 from meridian.common.google_api import execute_with_retry
 from meridian.common.rate_limiter import TokenBucket
+from meridian.common.retry import RetryExhaustedError
 from meridian.ingestion.gmail.message_parser import MessageParseError, parse_message
 from meridian.ingestion.gmail.store import GmailStore
 
@@ -21,6 +22,7 @@ class SyncStats:
     messages_updated: int = 0
     messages_deleted: int = 0
     parse_failures: int = 0
+    fetch_failures: int = 0
     duration_ms: float = 0.0
 
 
@@ -75,6 +77,7 @@ def run_sync(
                 "messages_updated": stats.messages_updated,
                 "messages_deleted": stats.messages_deleted,
                 "parse_failures": stats.parse_failures,
+                "fetch_failures": stats.fetch_failures,
             },
         )
 
@@ -188,6 +191,28 @@ def _fetch_and_store(service, store, message_id: str, stats: SyncStats, *, rate_
             stats.messages_deleted += 1
             return
         raise
+    except RetryExhaustedError as exc:
+        # execute_with_retry only reaches here for an error it already
+        # classified as transient (429/quota-flavored 403/5xx/connection
+        # failure - see google_api.py) that still never recovered within
+        # the retry budget. Real quota exhaustion on a big first-time
+        # backfill can outlast a handful of retries for one message
+        # without meaning every later message is doomed too - dead-letter
+        # just this one and keep going, the same way a parse failure below
+        # doesn't abort the whole mailbox. A genuinely permanent error
+        # (401/403-non-quota/400) never raises RetryExhaustedError at all -
+        # execute_with_retry re-raises those immediately with zero
+        # retries - so it still propagates and aborts the sync here,
+        # unchanged (see
+        # test_permanent_error_during_fetch_propagates_without_retrying_forever).
+        store.record_dead_letter(message_id, str(exc))
+        stats.fetch_failures += 1
+        if logger is not None:
+            logger.warning(
+                f"gave up fetching gmail message {message_id} after exhausting retries",
+                extra={"operation": "gmail.fetch_exhausted", "status": "error", "duration_ms": 0},
+            )
+        return
 
     try:
         parsed = parse_message(raw)
