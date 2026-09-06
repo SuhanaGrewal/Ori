@@ -126,6 +126,24 @@ def test_ask_abstains_without_calling_llm_on_empty_index(tmp_path):
     assert result.sources is None
 
 
+def test_ask_excludes_revoked_sources(tmp_path):
+    # real bug: revoking a data-source scope in Settings never actually
+    # stopped that source's content from being used in answers.
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    _seed_high_confidence_chunk(store, "quarterly budget report", query_vec)
+    reranker = _FakeReranker({"quarterly budget report": 10.0})
+
+    result = ask(
+        "budget report", store=store, embedder=_FakeEmbedder(query_vec), reranker=reranker,
+        analyzer=_FakeAnalyzer(), client=_RaisingClient(), model="claude-haiku-4-5", now=_NOW,
+        excluded_sources=frozenset({"gmail"}),
+    )
+
+    assert result.abstained is True
+    assert result.chunks == []
+
+
 def test_ask_returns_retrieval_only_when_no_client_configured(tmp_path):
     store = IndexStore(tmp_path / "index.db")
     query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)

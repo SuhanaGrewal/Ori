@@ -55,6 +55,7 @@ def build_digest_items(
     now: datetime | None = None,
     logger: logging.Logger | None = None,
     audit_log_dir: Path | None = None,
+    excluded_sources: frozenset[str] | None = None,
 ) -> list[str]:
     """a short, notification-shaped digest (3-5 bullet phrases) for the
     webchat's "tonight's digest" popup - distinct from
@@ -65,7 +66,15 @@ def build_digest_items(
     reimplementing "what's new," same reuse this project already applies
     in query/router.py's broad-summary intent - the only new piece here
     is summarizing into a much shorter form. Returns an empty list (no
-    LLM call) when there's nothing gathered, or no client configured."""
+    LLM call) when there's nothing gathered, or no client configured.
+
+    excluded_sources filters out revoked-scope items AFTER gather_items()
+    runs, rather than threading the concept into that shared function -
+    digest/gather.py is also used by the single-user CLI digest workflow
+    (Phase 10), which has no notion of per-user OAuth scopes at all;
+    every GatheredItem already carries its own "source" tag ("gmail",
+    "calendar", "docs", ...), so filtering here keeps that webchat-only
+    concern out of the shared module entirely."""
     now = now if now is not None else datetime.now(tz=timezone.utc)
     since = now - timedelta(hours=_LOOKBACK_HOURS)
     lookahead_end = now + timedelta(days=_LOOKAHEAD_DAYS)
@@ -74,6 +83,8 @@ def build_digest_items(
         gmail_store, calendar_store, docs_store, notes_store, entity_store,
         since=since.isoformat(), now=now.isoformat(), lookahead_end=lookahead_end.isoformat(), logger=logger,
     )
+    if excluded_sources:
+        items = [item for item in items if item["source"] not in excluded_sources]
     if not items or client is None:
         return []
 

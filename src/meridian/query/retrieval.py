@@ -43,17 +43,32 @@ def _fetch_and_filter_candidates(
     store: IndexStore,
     chunk_ids: list[str],
     date_range: tuple | None,
+    excluded_sources: frozenset[str] | None = None,
 ) -> list[sqlite3.Row]:
     """resolves fused search ids into full rows, applies the date filter (if
     any), and collapses multiple child-chunk hits from the same parent into
     one candidate - there's no separate parent table, so (source,
     source_item_id, parent_text) is the correct dedup key. preserves the
-    input's rank order throughout."""
+    input's rank order throughout.
+
+    excluded_sources is a post-filter, same as date_range - the caller
+    (webchat/server.py) maps a user's revoked OAuth scopes to source
+    names and passes them here so a revoked source's content is excluded
+    from an answer, not just the citation display. A post-filter rather
+    than pushing the exclusion down into hybrid_search()'s own SQL is a
+    deliberate, lower-risk choice: date_range filtering already works
+    this same way in this exact function, and revoking a scope is rare
+    enough that the (small) chance of a revoked source crowding out an
+    allowed one in the initial candidate pool isn't worth a wider,
+    riskier change to the SQL-level search functions."""
     rows = []
     for chunk_id in chunk_ids:
         row = store.get_chunk_row(chunk_id)
         if row is not None:
             rows.append(row)
+
+    if excluded_sources:
+        rows = [row for row in rows if row["source"] not in excluded_sources]
 
     if date_range is not None:
         rows = [
@@ -97,6 +112,7 @@ def retrieve(
     reranker: Any,
     date_range: tuple | None = None,
     source: str | None = None,
+    excluded_sources: frozenset[str] | None = None,
     logger: logging.Logger | None = None,
     initial_pool_k: int = 25,
     rerank_pool: int = 10,
@@ -112,7 +128,7 @@ def retrieve(
         return RetrievalResult(chunks=[], confidence=0.0, abstained=True, abstain_reason="no_candidates")
 
     chunk_ids = [chunk_id for chunk_id, _ in fused]
-    candidates = _fetch_and_filter_candidates(store, chunk_ids, date_range)
+    candidates = _fetch_and_filter_candidates(store, chunk_ids, date_range, excluded_sources)
 
     if not candidates:
         reason = "no_candidates_in_date_range" if date_range is not None else "no_candidates"

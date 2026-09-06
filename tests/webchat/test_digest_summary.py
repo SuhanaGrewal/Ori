@@ -110,6 +110,27 @@ def test_build_digest_items_strips_bullet_markers(tmp_path):
     assert items == ["3 replies drafted", "Invoice due Friday"]
 
 
+def test_build_digest_items_excludes_revoked_sources(tmp_path):
+    # real bug: revoking a scope in Settings never actually stopped that
+    # source's content from being used - this is the digest-endpoint half
+    # of the fix, filtering gathered items by their own "source" tag
+    # rather than threading the concept into the shared digest/gather.py
+    # module (also used by the single-user CLI digest, which has no
+    # notion of per-user OAuth scopes at all).
+    gmail_store, calendar_store, docs_store, notes_store, entity_store = _empty_stores(tmp_path)
+    gmail_store.upsert_message(_message())
+    client = _FakeClient("should never be called")
+
+    items = build_digest_items(
+        gmail_store, calendar_store, docs_store, notes_store, entity_store,
+        client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        excluded_sources=frozenset({"gmail"}),
+    )
+
+    assert items == []
+    assert client.messages.calls == []
+
+
 def test_build_digest_items_nothing_new_response_becomes_empty_list(tmp_path):
     gmail_store, calendar_store, docs_store, notes_store, entity_store = _empty_stores(tmp_path)
     gmail_store.upsert_message(_message())

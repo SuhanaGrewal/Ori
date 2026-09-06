@@ -133,6 +133,7 @@ def ask(
     client: Any,
     model: str,
     source: str | None = None,
+    excluded_sources: frozenset[str] | None = None,
     now: datetime | None = None,
     logger: logging.Logger | None = None,
     audit_log_dir: Path | None = None,
@@ -179,6 +180,7 @@ def ask(
         reranker=reranker,
         date_range=date_range,
         source=source,
+        excluded_sources=excluded_sources,
         logger=logger,
     )
 
@@ -201,7 +203,7 @@ def ask(
         # frame that way.
         fallback = retrieve(
             store, effective_question, question_embedding, reranker=reranker, date_range=None,
-            source=source, logger=logger,
+            source=source, excluded_sources=excluded_sources, logger=logger,
         )
         result = fallback if not fallback.abstained else replace(fallback, abstain_reason="no_upcoming_match")
 

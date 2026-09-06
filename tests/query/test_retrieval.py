@@ -98,6 +98,47 @@ def test_fetch_and_filter_dedups_children_sharing_a_parent(tmp_path):
     assert rows[0]["parent_text"] == shared_parent
 
 
+def test_fetch_and_filter_excludes_revoked_sources(tmp_path):
+    # real bug: revoking a data-source scope in Settings only ever
+    # updated a display field - nothing in the query pipeline read it
+    # back to actually stop searching that source. This is the retrieval-
+    # level enforcement half of the fix.
+    store = IndexStore(tmp_path / "index.db")
+    _seed(
+        store, "calendar", "evt-1",
+        [ChunkRecord(text="meeting", parent_text="meeting", position=0, is_own_parent=True)],
+        {"summary": "Standup"},
+    )
+    _seed(
+        store, "gmail", "msg-1",
+        [ChunkRecord(text="email", parent_text="email", position=0, is_own_parent=True)],
+        {"subject": "Hi"},
+    )
+
+    rows = _fetch_and_filter_candidates(
+        store, ["calendar:evt-1:0000", "gmail:msg-1:0000"], None, frozenset({"calendar"})
+    )
+
+    assert [row["source"] for row in rows] == ["gmail"]
+
+
+def test_retrieve_excludes_revoked_sources_end_to_end(tmp_path):
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "calendar", "evt-1",
+        [ChunkRecord(text="team meeting", parent_text="team meeting", position=0, is_own_parent=True)],
+        [query_vec],
+        {"summary": "Standup"},
+    )
+    reranker = _FakeReranker({"team meeting": 10.0})
+
+    result = retrieve(store, "meeting", query_vec, reranker=reranker, excluded_sources=frozenset({"calendar"}))
+
+    assert result.abstained is True
+    assert result.chunks == []
+
+
 def test_retrieve_returns_high_confidence_result(tmp_path):
     store = IndexStore(tmp_path / "index.db")
     query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)

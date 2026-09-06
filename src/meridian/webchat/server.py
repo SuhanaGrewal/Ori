@@ -39,6 +39,7 @@ from meridian.webchat.oauth_web_flow import (
     fetch_google_email,
     get_authorization_url,
 )
+from meridian.webchat.scopes import revoked_sources
 from meridian.webchat.users_store import WebUsersStore
 
 # two different localhost ports (frontend dev server vs this API) are two
@@ -218,12 +219,23 @@ def query(body: QueryBody) -> dict[str, Any]:
     is not a new query pipeline, just that same pipeline exposed over
     HTTP and rooted under one user's own per-user config/stores instead
     of the shared single-user data_dir a CLI run assumes."""
-    _require_user(body.user_id)
+    user = _require_user(body.user_id)
     per_user_config = config_for_user(_config, body.user_id)
     stores = _build_all_stores(per_user_config)
     answer_id = f"answer_{uuid.uuid4().hex[:12]}"
+    excluded_sources = revoked_sources(user)
 
-    if _client is not None:
+    # gmail_store itself is NOT optional in route() (it's required for
+    # intent classification and most handlers), so a revoked gmail scope
+    # skips the router path entirely and falls through to the main
+    # ask()/retrieve() path below, which excludes gmail via
+    # excluded_sources the same way calendar/docs are excluded here.
+    # calendar_store/docs_store/notes_store ARE already optional in
+    # route() (confirmed: the existing broad_summary handler already
+    # treats None as "this source isn't available") - passing None for a
+    # revoked one reuses that existing behavior rather than adding a new
+    # mechanism.
+    if _client is not None and "gmail" not in excluded_sources:
         router_result = route(
             body.question,
             gmail_store=stores["gmail_store"],
@@ -232,8 +244,8 @@ def query(body: QueryBody) -> dict[str, Any]:
             client=_client,
             model=per_user_config.llm_model,
             analyzer=_analyzer,
-            calendar_store=stores["calendar_store"],
-            docs_store=stores["docs_store"],
+            calendar_store=stores["calendar_store"] if "calendar" not in excluded_sources else None,
+            docs_store=stores["docs_store"] if "docs" not in excluded_sources else None,
             notes_store=stores["notes_store"],
             entity_store=stores["entity_store"],
             reminder_store=stores["reminder_store"],
@@ -266,6 +278,7 @@ def query(body: QueryBody) -> dict[str, Any]:
         audit_log_dir=per_user_config.log_dir,
         conversation_id=body.thread_id,
         conversation_store=conversation_store,
+        excluded_sources=excluded_sources,
     )
 
     if result.abstained:
@@ -297,7 +310,7 @@ def query(body: QueryBody) -> dict[str, Any]:
 
 @app.get("/api/digest")
 def digest(user_id: str = Query(...)) -> dict[str, Any]:
-    _require_user(user_id)
+    user = _require_user(user_id)
     per_user_config = config_for_user(_config, user_id)
     stores = _build_all_stores(per_user_config)
 
@@ -306,5 +319,6 @@ def digest(user_id: str = Query(...)) -> dict[str, Any]:
         stores["gmail_store"], stores["calendar_store"], stores["docs_store"], stores["notes_store"],
         stores["entity_store"], client=_client, model=per_user_config.llm_model, analyzer=_analyzer,
         now=now, logger=_logger, audit_log_dir=per_user_config.log_dir,
+        excluded_sources=revoked_sources(user),
     )
     return {"date": now.strftime("%a %b %d %Y"), "items": items}
