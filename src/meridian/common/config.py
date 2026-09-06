@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -89,6 +89,19 @@ def load_config(*, load_env_file=True) -> Config:
     register_secret(config.google_client_secret)
     register_secret(config.llm_api_key)
     return config
+
+
+def config_for_user(base_config: Config, user_id: str) -> Config:
+    """derives a per-user Config for the webchat multi-user backend by
+    rooting data_dir under base_config.data_dir/users/<user_id> - every
+    existing single-user store/module (ingestion, indexing, auth tokens,
+    reminders, etc.) keeps working completely unmodified, just pointed at
+    one user's own isolated directory instead of the shared top-level
+    data_dir. google_client_id/secret and llm_api_key/model stay shared -
+    those are app-level credentials, not per-user data. log_dir also
+    stays shared (operational logs, not personal data) - only data_dir
+    changes."""
+    return replace(base_config, data_dir=base_config.data_dir / "users" / user_id)
 
 
 def ensure_dirs(config: Config) -> None:
