@@ -78,6 +78,33 @@ def test_classify_prompt_distinguishes_awkwardly_worded_questions_from_reminders
     assert "laptop drop off when do i need to" in CLASSIFY_SYSTEM_PROMPT.lower()
 
 
+def test_classify_prompt_distinguishes_named_item_questions_from_stale_threads():
+    # real bug: "billy wardrop thread status" and "what am i waiting for
+    # on my pan application" were classified STALE_THREADS instead of
+    # GENERAL - both ask about one specific, named item's own status, not
+    # the open-ended "what's waiting on my reply" list.
+    assert "billy wardrop thread status" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
+def test_classify_prompt_distinguishes_named_item_questions_from_commitments():
+    # real bug: "whats pending with my pan" was classified COMMITMENTS
+    # and answered "No open commitments right now" instead of actually
+    # answering about the PAN application - it's a question about one
+    # named item, not the open-ended commitments list.
+    assert "whats pending with my pan" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
+def test_classify_prompt_distinguishes_status_questions_from_resolve():
+    # real bug, more severe than the others: "is the laptop thing resolved
+    # yet" - a QUESTION - was classified RESOLVE and actually executed a
+    # write, silently marking a real reminder as dismissed with zero
+    # confirmation. A misclassification into a read-only category produces
+    # a wrong answer; a misclassification into RESOLVE takes an unrequested
+    # action - this is the one category where getting it wrong is not
+    # just unhelpful but actively does something nobody asked for.
+    assert "is the laptop thing resolved yet" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
 def test_classify_intent_stale_threads():
     client = _FakeClient(["STALE_THREADS"])
 
