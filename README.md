@@ -530,6 +530,16 @@ cryptographic non-repudiation against a hostile actor with full disk
 access — an unrealistic threat model for a single-user local app, where
 that actor would be the app's only user.
 
+To directly see redaction working rather than just trusting the entity
+counts in the audit log, `check-redaction` shows a real message's raw
+text next to exactly what would be sent to Claude, plus a round-trip
+check confirming the placeholders restore the original exactly:
+
+```
+python -m meridian.security check-redaction
+python -m meridian.security check-redaction --subject "cancellation"
+```
+
 **Encrypted local storage** — extended narrowly to `digest/store.py`'s
 `digest_text`/`sources_text` columns using the same Fernet primitive
 already proven in `auth/token_store.py`'s OAuth token encryption, rather
