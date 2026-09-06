@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -11,7 +12,8 @@ CREATE TABLE IF NOT EXISTS turns (
     conversation_id TEXT NOT NULL,
     role            TEXT NOT NULL,
     content         TEXT NOT NULL,
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    chunk_ids_json  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_turns_conversation ON turns(conversation_id, created_at);
 """
@@ -37,16 +39,41 @@ class ConversationStore:
         self._conn = sqlite3.connect(db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        try:
+            # CREATE TABLE IF NOT EXISTS never adds a column to a table
+            # that already existed on disk before this field was added -
+            # this migrates any pre-existing conversations.db in place.
+            # Fresh databases already have the column from _SCHEMA above,
+            # so this raises "duplicate column" there and is ignored (same
+            # pattern as webchat/users_store.py's sync_status migration).
+            self._conn.execute("ALTER TABLE turns ADD COLUMN chunk_ids_json TEXT")
+        except sqlite3.OperationalError:
+            pass
         self._conn.commit()
 
     def close(self) -> None:
         self._conn.close()
 
-    def add_turn(self, conversation_id: str, role: str, content: str) -> None:
+    def add_turn(
+        self, conversation_id: str, role: str, content: str, *, chunk_ids: list[str] | None = None
+    ) -> None:
+        """chunk_ids records which IndexStore chunks grounded this turn
+        (assistant turns only, in practice) - lets a later abstained
+        follow-up recover the same document instead of giving up (see
+        query/answer.py's fallback-before-abstain step). None for user
+        turns and for any assistant turn with nothing to ground on."""
         with self._conn:
             self._conn.execute(
-                "INSERT INTO turns (turn_id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (str(uuid.uuid4()), conversation_id, role, content, _now()),
+                "INSERT INTO turns (turn_id, conversation_id, role, content, created_at, chunk_ids_json) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    str(uuid.uuid4()),
+                    conversation_id,
+                    role,
+                    content,
+                    _now(),
+                    json.dumps(chunk_ids) if chunk_ids else None,
+                ),
             )
 
     def list_turns(self, conversation_id: str, *, limit: int | None = None) -> list[sqlite3.Row]:

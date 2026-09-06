@@ -432,6 +432,67 @@ def test_ask_records_original_question_and_answer_as_new_turns(tmp_path):
     assert turns[1]["content"] == "Here's the budget report [1]."
 
 
+def test_ask_falls_back_to_previous_grounding_when_followup_abstains(tmp_path):
+    # real bug: a follow-up correctly gets rewritten to be about the right
+    # item ("when will my pan application be delivered"), but that item's
+    # own text ("your e-pan file has been processed") has too little
+    # textual overlap with the follow-up's wording to clear the
+    # reranker's confidence threshold on its own - retrieve() runs a
+    # fresh, independent search every time, with no notion that we were
+    # just definitely discussing this exact document.
+    conversation_store = ConversationStore(tmp_path / "conversations.db")
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    _seed_high_confidence_chunk(store, "your e-pan file has been processed", query_vec)
+
+    client = _FakeMultiReplyClient([
+        "Your e-PAN is ready [1].",
+        "when will my pan application be delivered",
+        "The email about your PAN doesn't mention a delivery date [1].",
+    ])
+
+    first = ask(
+        "what's the status of my pan application", store=store, embedder=_FakeEmbedder(query_vec),
+        reranker=_FakeReranker({"your e-pan file has been processed": 10.0}),
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+        conversation_id="thread-1", conversation_store=conversation_store,
+    )
+    assert first.abstained is False
+
+    second = ask(
+        "when will it be delivered", store=store, embedder=_FakeEmbedder(query_vec),
+        reranker=_FakeReranker({}),  # fresh, independent retrieval finds nothing confident on its own
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+        conversation_id="thread-1", conversation_store=conversation_store,
+    )
+
+    assert second.abstained is False
+    assert second.answer == "The email about your PAN doesn't mention a delivery date [1]."
+    assert second.chunks[0].parent_text == "your e-pan file has been processed"
+
+
+def test_ask_still_abstains_on_followup_with_no_prior_grounded_turn(tmp_path):
+    # a follow-up with conversation history but nothing grounded to fall
+    # back to (the earlier turn in this thread itself abstained, and
+    # abstains are never persisted - see
+    # test_ask_does_not_record_turns_when_abstaining) should abstain
+    # exactly as it did before this fallback existed.
+    conversation_store = ConversationStore(tmp_path / "conversations.db")
+    conversation_store.add_turn("thread-1", "user", "an earlier question that itself abstained")
+
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
+    result = ask(
+        "when will it be delivered", store=store, embedder=_FakeEmbedder(query_vec),
+        reranker=_FakeReranker({}), analyzer=_FakeAnalyzer(),
+        client=_FakeMultiReplyClient(["when will it be delivered"]),
+        model="claude-haiku-4-5", now=_NOW, conversation_id="thread-1", conversation_store=conversation_store,
+    )
+
+    assert result.abstained is True
+
+
 def test_ask_does_not_record_turns_when_abstaining(tmp_path):
     conversation_store = ConversationStore(tmp_path / "conversations.db")
     store = IndexStore(tmp_path / "index.db")

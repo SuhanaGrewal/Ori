@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -20,7 +21,7 @@ from meridian.query.prompt import (
     build_user_message,
     format_sources,
 )
-from meridian.query.retrieval import AbstainReason, RetrievedChunk, retrieve
+from meridian.query.retrieval import AbstainReason, RetrievedChunk, retrieve, row_to_chunk
 from meridian.redaction.tokenize import tokenize_for_external_call, untokenize
 from meridian.security.audit_log import record_event
 
@@ -58,6 +59,35 @@ def _llm_confirms_relevance(
         max_tokens=10, logger=logger,
     )
     return "YES" in raw.strip().upper()
+
+
+def _recover_previous_grounding(history: list[Any], *, store: IndexStore) -> list[RetrievedChunk]:
+    """last resort before abstaining on a follow-up: retrieve() runs a
+    fresh, independent search for every question, with no notion that a
+    follow-up seconds after a grounded answer is almost always still
+    about that same document - confirmed via real testing where a
+    follow-up correctly got rewritten to be about the right item (e.g.
+    "when will my PAN application be delivered") but the item's own text
+    ("processed", "e-PAN file attached") has too little textual/semantic
+    overlap with the follow-up's own wording ("delivered") to clear the
+    reranker's confidence threshold on its own.
+
+    Scans history (oldest-first) from the end for the most recent
+    assistant turn that recorded which chunks grounded it (see
+    ConversationStore.add_turn's chunk_ids), and re-fetches those exact
+    chunks by id - not a fresh search, just "what were we just definitely
+    looking at." SYSTEM_PROMPT's own "stay scoped to the same item... say
+    so plainly if it's not there" instruction does the rest. Returns []
+    if no prior grounded turn exists (a fresh conversation, or one where
+    every turn so far has itself abstained) - callers should abstain
+    exactly as before in that case."""
+    for turn in reversed(history):
+        if turn["role"] != "assistant" or not turn["chunk_ids_json"]:
+            continue
+        chunk_ids = json.loads(turn["chunk_ids_json"])
+        rows = [store.get_chunk_row(chunk_id) for chunk_id in chunk_ids]
+        return [row_to_chunk(row, 1.0) for row in rows if row is not None]
+    return []
 
 
 @dataclass(frozen=True)
@@ -166,6 +196,11 @@ def ask(
         ):
             result = replace(result, abstained=False, abstain_reason=None, chunks=[top_chunk])
 
+    if result.abstained and history:
+        recovered = _recover_previous_grounding(history, store=store)
+        if recovered:
+            result = replace(result, abstained=False, abstain_reason=None, chunks=recovered, confidence=1.0)
+
     if result.abstained:
         return AnswerResult(
             question=question,
@@ -213,7 +248,9 @@ def ask(
         # abstain loses that turn as future rewrite context, which is an
         # acceptable, honest limitation for now rather than a silent gap.
         conversation_store.add_turn(conversation_id, "user", question)
-        conversation_store.add_turn(conversation_id, "assistant", answer)
+        conversation_store.add_turn(
+            conversation_id, "assistant", answer, chunk_ids=[chunk.chunk_id for chunk in result.chunks]
+        )
 
     return AnswerResult(
         question=question,

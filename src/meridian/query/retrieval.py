@@ -74,6 +74,21 @@ def _fetch_and_filter_candidates(
     return deduped
 
 
+def row_to_chunk(row: sqlite3.Row, confidence: float) -> RetrievedChunk:
+    """builds a RetrievedChunk from a raw `chunks` table row - shared by
+    retrieve() below and query/answer.py's fallback-before-abstain path,
+    which recovers a specific prior chunk by id (IndexStore.get_chunk_row)
+    rather than through a fresh search."""
+    return RetrievedChunk(
+        chunk_id=row["chunk_id"],
+        source=row["source"],
+        source_item_id=row["source_item_id"],
+        parent_text=row["parent_text"],
+        metadata=json.loads(row["metadata_json"]),
+        confidence=confidence,
+    )
+
+
 def retrieve(
     store: IndexStore,
     question: str,
@@ -108,17 +123,7 @@ def retrieve(
 
     ranked = sorted(zip(pool, scores), key=lambda item: item[1], reverse=True)[:top_k]
 
-    chunks = [
-        RetrievedChunk(
-            chunk_id=row["chunk_id"],
-            source=row["source"],
-            source_item_id=row["source_item_id"],
-            parent_text=row["parent_text"],
-            metadata=json.loads(row["metadata_json"]),
-            confidence=score,
-        )
-        for row, score in ranked
-    ]
+    chunks = [row_to_chunk(row, score) for row, score in ranked]
 
     top_confidence = chunks[0].confidence if chunks else 0.0
     abstained = top_confidence < abstain_threshold
