@@ -33,6 +33,46 @@ on it yet.
 
 ## Fixed
 
+### 23. "Nothing found" abstain messages didn't say what wasn't found
+Found via CEO-persona real-usage testing (a busy end user with zero
+patience for vague non-answers): asking about something genuinely absent
+from the index - e.g. "what's the status of the dashboard integration
+project" or "any upcoming board meetings scheduled" - returned a fully
+generic message ("Nothing found was a confident enough match to answer
+from.", "Nothing upcoming found for that, and no earlier record
+either.") with no indication of what topic was actually searched, no way
+to tell whether the system even understood the question, and no natural
+next step.
+
+`query/prompt.py::build_abstain_message()` grounds every abstain reason
+in the actual question text (e.g. `Nothing found for "any upcoming board
+meetings scheduled" was a confident enough match to answer from.`) via
+plain string formatting - no extra LLM call, so abstaining stays
+zero-cost exactly as before (verified: the existing tests proving the
+LLM is never called on an abstain still pass unchanged).
+`query/__main__.py` now calls this instead of a static message dict.
+`query/router.py::_summarize_broad_ask`'s empty-results case got the
+same treatment, additionally naming the actual date window checked
+(e.g. "between 2026-08-30 and 2026-09-06") so a broad "catch me up"
+ask that finds nothing says which window was actually searched, not
+just "nothing relevant."
+
+Verified against real data: "what's the status of the dashboard
+integration project" now returns `Nothing found for "what's the status
+of the dashboard integration project" was a confident enough match to
+answer from.`; "any upcoming board meetings scheduled" now returns
+`Nothing upcoming found for "any upcoming board meetings scheduled", and
+no earlier record either.` - both previously returned the fully generic
+message with no topic reference at all.
+
+Also tested this loop, working well as-is (no changes needed):
+stale-thread lookup (`any threads waiting on my reply` correctly
+surfaced the real Billy Wardrop/laptop thread with a brief, cited
+summary), open-commitments lookup, and reminder intake (correctly
+disclosed "nothing is booked automatically" - Meridian has no
+calendar-write capability, by design, so a request to actually book
+something is a real, honest limit, not a bug).
+
 ### 22. No way to ask a follow-up question with context from the prior one
 Requested: "how do we create a text thread where I can ask follow up
 questions?" Every query was fully stateless - `ask()` had no memory

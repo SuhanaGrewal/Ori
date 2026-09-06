@@ -1,6 +1,13 @@
 from datetime import datetime, timezone
 
-from meridian.query.prompt import SYSTEM_PROMPT, _relative_days_label, _source_label, build_user_message, format_sources
+from meridian.query.prompt import (
+    SYSTEM_PROMPT,
+    _relative_days_label,
+    _source_label,
+    build_abstain_message,
+    build_user_message,
+    format_sources,
+)
 from meridian.query.retrieval import RetrievedChunk
 
 
@@ -198,3 +205,35 @@ def test_format_sources_numbers_match_build_user_message():
 
 def test_format_sources_empty_chunks():
     assert format_sources([]) == "Sources:"
+
+
+def test_build_abstain_message_no_candidates_echoes_question():
+    message = build_abstain_message("what's the status of the dashboard integration project", "no_candidates")
+
+    assert "dashboard integration project" in message
+
+
+def test_build_abstain_message_no_candidates_in_date_range_echoes_question():
+    message = build_abstain_message("what's on my calendar next week", "no_candidates_in_date_range")
+
+    assert "what's on my calendar next week" in message
+    assert "date range" in message
+
+
+def test_build_abstain_message_low_confidence_echoes_question():
+    message = build_abstain_message("any board meetings", "low_confidence")
+
+    assert "any board meetings" in message
+
+
+def test_build_abstain_message_no_upcoming_match_echoes_question():
+    message = build_abstain_message("any upcoming board meetings", "no_upcoming_match")
+
+    assert "any upcoming board meetings" in message
+    assert "no earlier record" in message
+
+
+def test_build_abstain_message_unknown_reason_falls_back_to_generic_but_still_echoes_question():
+    message = build_abstain_message("some question", "some_future_reason_not_yet_added")
+
+    assert "some question" in message

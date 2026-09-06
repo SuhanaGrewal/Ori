@@ -159,7 +159,14 @@ def _summarize_broad_ask(
         since=since.isoformat(), now=now.isoformat(), lookahead_end=lookahead_end.isoformat(), logger=logger,
     )
     if not items:
-        return "Nothing relevant found for that."
+        # names the actual window checked, not just a generic "nothing
+        # found" - found via real-user testing that a bare non-answer
+        # gives no sense of whether the right window/sources were even
+        # searched.
+        return (
+            f'Nothing new found for "{text}" across email, calendar, docs, or notes '
+            f"between {since.date().isoformat()} and {now.date().isoformat()}."
+        )
 
     user_message = build_broad_ask_user_message(text, items)
     return _call_llm(

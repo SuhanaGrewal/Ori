@@ -338,7 +338,7 @@ def test_route_broad_summary_with_nothing_gathered_skips_second_llm_call(tmp_pat
         calendar_store=calendar_store, docs_store=docs_store, notes_store=notes_store, entity_store=entity_store,
     )
 
-    assert result.answer == "Nothing relevant found for that."
+    assert 'Nothing new found for "summarize my recent emails"' in result.answer
 
 
 def test_classify_intent_reminder():

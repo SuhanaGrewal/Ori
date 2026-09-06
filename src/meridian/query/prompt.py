@@ -120,6 +120,26 @@ def build_tiebreak_user_message(question: str, candidate_text: str) -> str:
     return f"Question:\n{question}\n\nCandidate context:\n{candidate_text}"
 
 
+_ABSTAIN_REASON_TEMPLATES = {
+    "no_candidates": 'Nothing in your indexed email, calendar, docs, or notes looks related to "{question}".',
+    "no_candidates_in_date_range": 'Found content related to "{question}", but none of it falls in that date range.',
+    "low_confidence": 'Nothing found for "{question}" was a confident enough match to answer from.',
+    "no_upcoming_match": 'Nothing upcoming found for "{question}", and no earlier record either.',
+}
+
+
+def build_abstain_message(question: str, abstain_reason: str) -> str:
+    """grounds the "nothing found" message in the actual question asked,
+    instead of a fully generic phrase - found via real-user testing: a
+    bare "nothing found" doesn't say what wasn't found, so there's no way
+    to tell whether the system even understood the question. Plain string
+    formatting only, no extra LLM call - abstaining stays zero-cost (see
+    query/answer.py's tests proving the LLM is never called on an
+    abstain)."""
+    template = _ABSTAIN_REASON_TEMPLATES.get(abstain_reason, 'Nothing found for "{question}".')
+    return template.format(question=question)
+
+
 def format_sources(chunks: list[RetrievedChunk], *, now: datetime | None = None) -> str:
     """renders the final source list from data this project already owns -
     not parsed out of claude's response, which only produces the inline

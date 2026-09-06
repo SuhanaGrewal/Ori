@@ -17,18 +17,12 @@ from meridian.query.anthropic_client import build_client
 from meridian.query.answer import ask
 from meridian.query.history import record_question
 from meridian.query.history_store import QueryHistoryStore
+from meridian.query.prompt import build_abstain_message
 from meridian.query.reranker import build_reranker
 from meridian.query.router import route
 from meridian.redaction.analyzer import build_analyzer_engine
 from meridian.reminders.store import ReminderStore
 from meridian.replies.store import DraftStore
-
-_ABSTAIN_MESSAGES = {
-    "no_candidates": "Nothing in the index looks related to that question.",
-    "no_candidates_in_date_range": "Found related content, but none of it falls in that date range.",
-    "low_confidence": "Nothing found was a confident enough match to answer from.",
-    "no_upcoming_match": "Nothing upcoming found for that, and no earlier record either.",
-}
 
 
 def main() -> None:
@@ -129,7 +123,7 @@ def main() -> None:
     )
 
     if result.abstained:
-        print(_ABSTAIN_MESSAGES[result.abstain_reason])
+        print(build_abstain_message(args.question, result.abstain_reason))
         return
 
     if result.answer is not None:
