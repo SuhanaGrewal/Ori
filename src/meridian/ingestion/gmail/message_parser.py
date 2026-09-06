@@ -30,6 +30,7 @@ class ParsedMessage:
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _HTML_STYLE_SCRIPT_RE = re.compile(r"<(style|script)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
+_WHITESPACE_RUN_RE = re.compile(r"\s+")
 
 
 def parse_message(raw: dict[str, Any]) -> ParsedMessage:
@@ -126,8 +127,20 @@ def _strip_html(html: str) -> str:
     passenger name from an unrelated word in the subject line instead of
     admitting the real content wasn't there. Strip these blocks (tag AND
     content) before the generic tag strip."""
+    # HTML whitespace (indentation, forced line-wrapping, \r\n from the
+    # source markup) is purely presentational and carries no meaning once
+    # tags are gone - found live: a real admissions email's mailing
+    # address rendered as "15\r\nGarden Estate\r\nMG Road" in the
+    # extracted body text, and the model then quoted those literal \r\n
+    # sequences verbatim in its answer, breaking a one-line address across
+    # multiple lines mid-sentence. Collapsing every whitespace run to a
+    # single space is how a browser would render this HTML anyway, so
+    # this doesn't lose real structure - unlike a plain-text email, where
+    # line breaks are often intentional (paragraphs, signatures) and are
+    # deliberately left untouched.
     without_style_or_script = _HTML_STYLE_SCRIPT_RE.sub(" ", html)
-    return _HTML_TAG_RE.sub(" ", without_style_or_script).strip()
+    without_tags = _HTML_TAG_RE.sub(" ", without_style_or_script)
+    return _WHITESPACE_RUN_RE.sub(" ", without_tags).strip()
 
 
 def _hash_content(

@@ -117,6 +117,32 @@ def test_strips_style_and_script_block_content_not_just_tags():
     assert "var x" not in parsed.body_text
 
 
+def test_html_whitespace_collapses_to_single_spaces():
+    # real bug: a real admissions email's mailing address rendered as
+    # "15\r\nGarden Estate\r\nMG Road" in the extracted body text (HTML
+    # source indentation/line-wrapping carried straight through), and the
+    # model then quoted those literal \r\n sequences verbatim in its
+    # answer - breaking a one-line address across multiple lines
+    # mid-sentence. HTML whitespace is purely presentational, so
+    # collapsing it to single spaces matches how a browser would render
+    # it and loses no real structure.
+    html = "<p>15\r\nGarden Estate\r\nMG   Road</p>"
+    raw = {
+        "id": "msg-whitespace",
+        "threadId": "thread-whitespace",
+        "labelIds": [],
+        "payload": {
+            "mimeType": "multipart/mixed",
+            "headers": _headers(),
+            "parts": [{"mimeType": "text/html", "body": {"data": _b64(html)}}],
+        },
+    }
+
+    parsed = parse_message(raw)
+
+    assert parsed.body_text == "15 Garden Estate MG Road"
+
+
 def test_combines_to_and_cc_recipients():
     raw = {
         "id": "msg-4",
