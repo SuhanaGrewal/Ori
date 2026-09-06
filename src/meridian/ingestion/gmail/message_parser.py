@@ -29,6 +29,7 @@ class ParsedMessage:
 
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_HTML_STYLE_SCRIPT_RE = re.compile(r"<(style|script)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 
 
 def parse_message(raw: dict[str, Any]) -> ParsedMessage:
@@ -115,7 +116,18 @@ def _decode_base64url(data: str) -> str:
 
 
 def _strip_html(html: str) -> str:
-    return _HTML_TAG_RE.sub(" ", html).strip()
+    """the tag-stripping regex only removes tags themselves, not the raw
+    CSS/JS *text content* sitting between <style>/<script> tags - found
+    live via real testing: a real Trainline booking-confirmation email
+    (MJML-generated, like most transactional emails) left hundreds of
+    characters of CSS rules ("#outlook a { padding:0; }", font imports,
+    etc.) in the "extracted" body text, displacing or truncating the
+    actual booking details and causing the model to hallucinate a
+    passenger name from an unrelated word in the subject line instead of
+    admitting the real content wasn't there. Strip these blocks (tag AND
+    content) before the generic tag strip."""
+    without_style_or_script = _HTML_STYLE_SCRIPT_RE.sub(" ", html)
+    return _HTML_TAG_RE.sub(" ", without_style_or_script).strip()
 
 
 def _hash_content(

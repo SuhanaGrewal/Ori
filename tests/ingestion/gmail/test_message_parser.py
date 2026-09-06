@@ -86,6 +86,37 @@ def test_falls_back_to_stripped_html_when_no_plain_part():
     assert "<p>" not in parsed.body_text
 
 
+def test_strips_style_and_script_block_content_not_just_tags():
+    # real bug: a real Trainline booking-confirmation email (MJML-style,
+    # like most transactional emails) left raw CSS text in the
+    # "extracted" body - the old regex only stripped tags, not the text
+    # content sitting between <style>/<script> tags - which displaced the
+    # real booking details and caused the model to hallucinate a
+    # passenger name from an unrelated word in the subject line.
+    html = (
+        "<html><head><style>#outlook a { padding:0; } "
+        "body { margin:0; }</style><script>var x = 1;</script></head>"
+        "<body><p>Booking confirmed for Suhana Grewal</p></body></html>"
+    )
+    raw = {
+        "id": "msg-style",
+        "threadId": "thread-style",
+        "labelIds": [],
+        "payload": {
+            "mimeType": "multipart/mixed",
+            "headers": _headers(),
+            "parts": [{"mimeType": "text/html", "body": {"data": _b64(html)}}],
+        },
+    }
+
+    parsed = parse_message(raw)
+
+    assert "Booking confirmed for Suhana Grewal" in parsed.body_text
+    assert "padding" not in parsed.body_text
+    assert "outlook" not in parsed.body_text
+    assert "var x" not in parsed.body_text
+
+
 def test_combines_to_and_cc_recipients():
     raw = {
         "id": "msg-4",
