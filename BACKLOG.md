@@ -33,6 +33,44 @@ on it yet.
 
 ## Fixed
 
+### 25. Redaction gave the same real name a different placeholder each time it appeared, so the model couldn't recognize repeated entities
+Found via CEO-persona testing: "what's my history with Billy Wardrop"
+answered "Billy Wardrop is not mentioned in any of these messages" -
+while citing, as its own sources, two emails literally *from* Billy
+Wardrop. Traced to `redaction/tokenize.py::tokenize_for_external_call()`:
+every detected span got a brand-new incrementing placeholder number
+regardless of whether the exact same text had already been redacted
+earlier in the same call. So "Billy Wardrop" appearing as an email
+sender became `<PERSON_1>`, the same name appearing again as another
+sender became `<PERSON_3>`, and the same name in the user's own question
+became `<PERSON_5>` - three different, seemingly-unrelated placeholders
+for one real person. The model never saw them as the same entity; only
+`untokenize()` restoring all three back to "Billy Wardrop" afterward
+made the final answer look self-contradictory ("Billy Wardrop, Billy
+Wardrop, ... Billy Wardrop does not appear").
+
+Fixed by deduping placeholder assignment on exact `(entity_type, exact
+substring)` match within one call - the same literal text now always
+reuses its first-assigned placeholder number, so the model can correctly
+recognize "this is the same person/email/etc. mentioned more than once."
+`entity_counts` still counts every occurrence (unchanged, since that's
+used for audit-log volume, not identity). Deliberately exact-match only,
+not fuzzy name matching - "Billy" and "Billy Wardrop" still get separate
+placeholders, a smaller remaining gap than assigning no shared identity
+at all, and safer than a heuristic that could wrongly merge two actually-
+different people.
+
+Also strengthened `query/prompt.py`'s `SYSTEM_PROMPT` to explicitly
+state that each context block's own first line (sender/subject, event
+title, doc title) is itself answerable information, not just a citation
+label - a smaller, complementary fix for the same class of "the answer
+was right there and got missed" failure.
+
+Verified against real data: re-ran the exact failing question after the
+fix - it now correctly and richly describes the real correspondence
+history with Billy Wardrop, correctly citing all the same sources that
+previously produced a wrong denial.
+
 ### 24. Open commitments had no useful tiebreak order for the common case
 Found via a follow-up CEO-persona testing pass: a prior note on this item
 claimed `list_open_commitments()` returned commitments in "whatever order

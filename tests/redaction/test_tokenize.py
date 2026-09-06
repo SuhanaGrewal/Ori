@@ -112,6 +112,58 @@ def test_tokenize_numbers_multiple_same_type_entities_left_to_right():
     assert result.entity_counts == {"PERSON": 2}
 
 
+def test_tokenize_reuses_placeholder_for_identical_repeated_value():
+    # regression test: the same real name appearing more than once (e.g.
+    # as an email sender, then again in the user's own question) used to
+    # get a fresh, unrelated placeholder number each time - so the model
+    # had no way to know <PERSON_1> and <PERSON_3> were the same person,
+    # and could wrongly claim someone "isn't mentioned anywhere" despite
+    # being the sender of the very email cited as a source. Confirmed via
+    # real testing: "what's my history with Billy Wardrop" failed this way
+    # until placeholders were deduped by exact value.
+    text = "Billy Wardrop wrote to you. Reply to Billy Wardrop soon."
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=0, end=13),
+            Span(entity_type="PERSON", start=37, end=50),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "<PERSON_1> wrote to you. Reply to <PERSON_1> soon."
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop"}
+
+
+def test_tokenize_repeated_value_still_counts_every_occurrence_in_entity_counts():
+    text = "Billy Wardrop wrote to you. Reply to Billy Wardrop soon."
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=0, end=13),
+            Span(entity_type="PERSON", start=37, end=50),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.entity_counts == {"PERSON": 2}
+
+
+def test_tokenize_distinct_values_of_same_type_still_get_separate_placeholders():
+    text = "Billy Wardrop met Billy Smith"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=0, end=13),
+            Span(entity_type="PERSON", start=18, end=29),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "<PERSON_1> met <PERSON_2>"
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop", "<PERSON_2>": "Billy Smith"}
+
+
 def test_tokenize_hard_secret_becomes_redacted_marker_not_in_mapping():
     text = "card: 4111111111111111"
     analyzer = _FakeAnalyzer([Span(entity_type="CREDIT_CARD", start=6, end=22)])

@@ -68,14 +68,35 @@ def tokenize_for_external_call(
 
     # number reversible placeholders in left-to-right reading order, before
     # substituting right-to-left (so earlier offsets stay valid as we go).
+    # the SAME exact value (e.g. "Billy Wardrop" appearing as both an
+    # email sender and later in a question) reuses its earlier placeholder
+    # number rather than getting a new one - without this, the model sees
+    # <PERSON_1> and <PERSON_3> as two different, unrelated people even
+    # though they're the same real name, making it unable to answer any
+    # question that requires recognizing the same entity mentioned more
+    # than once (confirmed via real testing: "what's my history with X"
+    # incorrectly claimed X wasn't mentioned anywhere, despite X being the
+    # sender of the very emails cited as sources - X's name in the
+    # question and X's name as a sender had been given different,
+    # unrelated placeholder numbers). Matching is exact-substring only
+    # (not fuzzy/partial name matching) to stay conservative - "Billy" and
+    # "Billy Wardrop" still get separate placeholders, which is a real but
+    # much smaller remaining gap than assigning no shared identity at all.
     counters: dict[str, int] = {}
+    value_to_idx: dict[tuple[str, str], int] = {}
     labeled: list[tuple[Any, int | None]] = []
     for span in sorted(spans, key=lambda s: s.start):
         if span.entity_type in HARD_SECRET_ENTITIES:
             labeled.append((span, None))
+            continue
+        value_key = (span.entity_type, text[span.start : span.end])
+        if value_key in value_to_idx:
+            idx = value_to_idx[value_key]
         else:
             counters[span.entity_type] = counters.get(span.entity_type, 0) + 1
-            labeled.append((span, counters[span.entity_type]))
+            idx = counters[span.entity_type]
+            value_to_idx[value_key] = idx
+        labeled.append((span, idx))
 
     mapping: dict[str, str] = {}
     entity_counts: dict[str, int] = {}

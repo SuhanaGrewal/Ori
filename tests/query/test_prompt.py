@@ -40,6 +40,11 @@ def test_system_prompt_mentions_recency_reasoning():
     assert "upcoming" in SYSTEM_PROMPT.lower()
 
 
+def test_system_prompt_tells_model_the_source_label_line_is_answerable():
+    assert "sender" in SYSTEM_PROMPT.lower()
+    assert "citation label" in SYSTEM_PROMPT.lower()
+
+
 def test_relative_days_label_past():
     now = datetime(2026, 9, 5, tzinfo=timezone.utc)
 
