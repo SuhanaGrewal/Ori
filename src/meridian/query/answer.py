@@ -61,6 +61,27 @@ def _llm_confirms_relevance(
     return "YES" in raw.strip().upper()
 
 
+_TRAILING_PUNCTUATION = ".?! "
+
+
+def _was_actually_rewritten(question: str, effective_question: str) -> bool:
+    """a strict string comparison is too fragile to answer "was this
+    follow-up actually resolved against prior context, or did it already
+    stand on its own" - confirmed live: rewrite_followup_question() is
+    explicitly told to return an already-self-contained question
+    completely unchanged, but a real Claude call still capitalized "was"
+    -> "Was" on an otherwise-untouched question. Case/whitespace/trailing-
+    punctuation noise like that isn't a real rewrite; comparing after
+    normalizing it out is what actually distinguishes "the model resolved
+    a pronoun/implicit reference" from "the model tidied up formatting on
+    an already-fine question." """
+
+    def _normalize(text: str) -> str:
+        return " ".join(text.strip().casefold().split()).rstrip(_TRAILING_PUNCTUATION)
+
+    return _normalize(question) != _normalize(effective_question)
+
+
 def _recover_previous_grounding(history: list[Any], *, store: IndexStore) -> list[RetrievedChunk]:
     """last resort before abstaining on a follow-up: retrieve() runs a
     fresh, independent search for every question, with no notion that a
@@ -208,22 +229,22 @@ def ask(
                 result = replace(result, abstained=False, abstain_reason=None, chunks=[candidate])
                 break
 
-    if result.abstained and history and effective_question != question:
-        # effective_question != question is the signal that this was a
-        # genuine follow-up needing prior context to stand alone, not a
-        # fresh topic switch that merely arrived in the same conversation.
-        # rewrite_followup_question() is explicitly instructed to return
-        # an already-self-contained question completely unchanged - found
-        # live without this guard: "was i in the hackathons winner list?"
-        # (a clean, self-contained question with real matching content -
-        # a Devpost competition-winners email - sitting in the index)
-        # abstained on its own fresh retrieval, then this fallback forced
-        # in the PRIOR turn's unrelated British Airways flight chunk
-        # anyway, producing "I can only see your British Airways flight
-        # booking" instead of ever running a real search for hackathon
-        # content. A follow-up that genuinely needed rewriting (e.g. "when
-        # will it be delivered" -> "when will my PAN application be
-        # delivered") still triggers this fallback exactly as before.
+    if result.abstained and history and _was_actually_rewritten(question, effective_question):
+        # a genuinely self-contained question that just got a cosmetic
+        # cleanup (capitalization, punctuation) is NOT the same as a real
+        # follow-up that needed prior context to stand alone - confirmed
+        # live: the real model rewrote "was i in the hackathons winner
+        # list?" to "Was I in the hackathons winner list?" (capitalizing
+        # "was") despite REWRITE_FOLLOWUP_SYSTEM_PROMPT explicitly saying
+        # to return an already-self-contained question unchanged - a
+        # plain string comparison treated that as "rewritten" and fired
+        # this fallback anyway, forcing in the PRIOR turn's unrelated
+        # British Airways flight chunk instead of ever running a real
+        # search for hackathon content (a real, matching Devpost email
+        # existed). Comparing case/whitespace-insensitively catches this
+        # real-world rewrite noise while still recognizing a genuine
+        # follow-up (e.g. "when will it be delivered" -> "when will my
+        # PAN application be delivered") as actually rewritten.
         recovered = _recover_previous_grounding(history, store=store)
         if recovered:
             result = replace(result, abstained=False, abstain_reason=None, chunks=recovered, confidence=1.0)

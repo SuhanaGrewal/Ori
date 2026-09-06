@@ -5,7 +5,7 @@ import numpy as np
 from meridian.conversation.store import ConversationStore
 from meridian.indexing.parent_child import ChunkRecord
 from meridian.indexing.store import IndexStore
-from meridian.query.answer import ask
+from meridian.query.answer import _was_actually_rewritten, ask
 
 _NOW = datetime(2024, 6, 12, 15, 30, tzinfo=timezone.utc)
 
@@ -407,6 +407,21 @@ def test_ask_backward_looking_query_does_not_fall_back(tmp_path):
     assert result.abstain_reason == "no_candidates_in_date_range"
 
 
+def test_was_actually_rewritten_ignores_case_whitespace_and_trailing_punctuation():
+    # real bug: rewrite_followup_question() is told to return an
+    # already-self-contained question completely unchanged, but the real
+    # model still capitalized "was" -> "Was" on one that needed no
+    # rewriting at all. A byte-exact comparison misreads that cosmetic
+    # cleanup as "genuinely rewritten."
+    assert _was_actually_rewritten("was i in the hackathons winner list?", "Was i in the hackathons winner list?") is False
+    assert _was_actually_rewritten("what about next month", "  what about next month  ") is False
+    assert _was_actually_rewritten("is it done", "is it done?") is False
+
+
+def test_was_actually_rewritten_true_for_a_genuine_followup_resolution():
+    assert _was_actually_rewritten("when will it be delivered", "when will my PAN application be delivered") is True
+
+
 def test_ask_with_conversation_id_but_empty_thread_skips_rewrite(tmp_path):
     # a fresh thread has nothing to rewrite against yet - only one LLM
     # call (the answer itself) should happen, same as a stateless ask().
@@ -524,11 +539,18 @@ def test_ask_does_not_recover_previous_grounding_for_a_fresh_self_contained_ques
     # existed, forcing in the PRIOR turn's completely unrelated grounding
     # (a British Airways flight chunk) and producing "I can only see your
     # British Airways flight booking" instead of a real search ever
-    # running. rewrite_followup_question() is explicitly instructed to
-    # return an already-self-contained question unchanged - that's the
-    # signal used here: only recover previous grounding when the question
-    # was actually rewritten (a genuine follow-up), never when it stood on
-    # its own already.
+    # running.
+    #
+    # The rewrite reply below deliberately capitalizes "Was" - confirmed
+    # against the REAL model that this happens even when
+    # REWRITE_FOLLOWUP_SYSTEM_PROMPT explicitly says to return an
+    # already-self-contained question completely unchanged. An earlier,
+    # weaker version of this fix compared the raw strings directly and
+    # missed this exact case (a plain "!=" treated the capitalization
+    # fix as "genuinely rewritten" and fired the fallback anyway,
+    # reproducing the live bug even with the guard in place) - this test
+    # exists specifically to hold the fix to real-world rewrite noise,
+    # not just a byte-identical no-op.
     conversation_store = ConversationStore(tmp_path / "conversations.db")
     store = IndexStore(tmp_path / "index.db")
     query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
@@ -536,7 +558,7 @@ def test_ask_does_not_recover_previous_grounding_for_a_fresh_self_contained_ques
 
     client = _FakeMultiReplyClient([
         "Your flight already happened [1].",
-        "was i in the hackathons winner list?",  # unchanged - already self-contained
+        "Was i in the hackathons winner list?",  # cosmetic-only rewrite, not a real one
         "NO",  # tiebreak: the low-confidence flight chunk does not answer this
     ])
 
