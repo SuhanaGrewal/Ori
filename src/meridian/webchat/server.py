@@ -30,6 +30,7 @@ from meridian.query.router import route
 from meridian.redaction.analyzer import build_analyzer_engine
 from meridian.reminders.store import ReminderStore
 from meridian.replies.store import DraftStore
+from meridian.webchat.citations import chunk_to_citation, cited_chunks
 from meridian.webchat.digest_summary import build_digest_items
 from meridian.webchat.initial_sync import run_initial_sync
 from meridian.webchat.oauth_web_flow import (
@@ -195,24 +196,6 @@ class QueryBody(BaseModel):
     thread_id: str | None = None
 
 
-def _chunk_to_citation(chunk: Any) -> dict[str, str]:
-    """{label, detail} matching the frontend's citation-pill shape -
-    label is a short source identifier, detail the fuller description.
-    Deliberately built here rather than reusing query/prompt.py's private
-    _source_label() as-is, since that produces one combined string and
-    the frontend wants the short/full split into two fields."""
-    metadata = chunk.metadata
-    if chunk.source == "gmail":
-        return {"label": metadata.get("sender", "Email"), "detail": metadata.get("subject", "")}
-    if chunk.source == "calendar":
-        return {"label": metadata.get("summary", "Calendar event"), "detail": metadata.get("start_at", "")}
-    if chunk.source == "docs":
-        return {"label": metadata.get("title", "Document"), "detail": "Google Doc"}
-    if chunk.source == "local_files":
-        return {"label": metadata.get("path", "Note"), "detail": "Local note"}
-    return {"label": chunk.source, "detail": ""}
-
-
 def _build_all_stores(per_user_config: Any) -> dict[str, Any]:
     ensure_dirs(per_user_config)
     return {
@@ -280,8 +263,8 @@ def query(body: QueryBody) -> dict[str, Any]:
         answer = build_abstain_message(body.question, result.abstain_reason or "low_confidence")
         return {"id": answer_id, "question": body.question, "answer": answer, "citations": []}
 
-    citations = [_chunk_to_citation(chunk) for chunk in result.chunks]
     answer_text = result.answer if result.answer is not None else "LLM not configured - showing retrieval only."
+    citations = [chunk_to_citation(chunk) for chunk in cited_chunks(answer_text, result.chunks)]
     return {"id": answer_id, "question": body.question, "answer": answer_text, "citations": citations}
 
 
