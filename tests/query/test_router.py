@@ -4,6 +4,7 @@ from meridian.entity_graph.store import EntityGraphStore
 from meridian.inbox_intelligence.store import InboxIntelligenceStore
 from meridian.ingestion.calendar.store import CalendarStore
 from meridian.ingestion.docs.store import DocsStore
+from meridian.ingestion.calendar.event_parser import ParsedEvent
 from meridian.ingestion.gmail.message_parser import ParsedMessage
 from meridian.ingestion.gmail.store import GmailStore
 from meridian.ingestion.local_files.store import NotesStore
@@ -21,6 +22,15 @@ def _message(message_id, thread_id, sender, sent_at, body_text="hello", subject=
         message_id=message_id, thread_id=thread_id, subject=subject, sender=sender,
         recipients=["someone@example.com"], sent_at=sent_at, body_text=body_text,
         label_ids=["INBOX"], content_hash=f"hash-{message_id}",
+    )
+
+
+def _event(event_id, summary, start_at, end_at) -> ParsedEvent:
+    return ParsedEvent(
+        calendar_id="primary", event_id=event_id, ical_uid=None, recurring_event_id=None,
+        summary=summary, description="", location="", status="confirmed",
+        start_at=start_at, end_at=end_at, is_all_day=False, organizer_email=None,
+        attendees=[], source_updated_at=None,
     )
 
 
@@ -627,3 +637,104 @@ def test_route_draft_reply_without_account_email_returns_explanatory_message(tmp
 
     assert "gmail" in result.answer.lower()
     assert len(client.messages.calls) == 1
+
+
+def test_classify_intent_calendar_conflicts():
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    intent = classify_intent("did I have overlapping meetings today", client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer())
+
+    assert intent == "calendar_conflicts"
+
+
+def test_route_calendar_conflicts_without_calendar_store_falls_through_to_general(tmp_path):
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+    )
+
+    assert result.intent == "general"
+    assert result.answer is None
+
+
+def test_route_calendar_conflicts_detects_a_real_overlap(tmp_path):
+    # the actual scenario single-document retrieval has no mechanism for
+    # at all: each event is individually retrievable, but noticing they
+    # overlap needs comparing two already-retrieved items against each
+    # other, not just finding either one.
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    calendar_store.upsert_event(_event("e1", "Design Review", "2024-06-10T10:00:00+00:00", "2024-06-10T11:00:00+00:00"))
+    calendar_store.upsert_event(_event("e2", "1:1 with Nick", "2024-06-10T10:30:00+00:00", "2024-06-10T11:30:00+00:00"))
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert result.intent == "calendar_conflicts"
+    assert "Design Review" in result.answer
+    assert "1:1 with Nick" in result.answer
+    assert "Yes" in result.answer
+    assert len(client.messages.calls) == 1  # deterministic overlap check, no second LLM call
+
+
+def test_route_calendar_conflicts_reports_no_overlap_when_events_are_sequential(tmp_path):
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    calendar_store.upsert_event(_event("e1", "Design Review", "2024-06-10T10:00:00+00:00", "2024-06-10T11:00:00+00:00"))
+    calendar_store.upsert_event(_event("e2", "1:1 with Nick", "2024-06-10T11:00:00+00:00", "2024-06-10T11:30:00+00:00"))
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert "No overlapping meetings" in result.answer
+
+
+def test_route_calendar_conflicts_reports_no_events_for_an_empty_day(tmp_path):
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert "No calendar events found" in result.answer
+
+
+def test_route_calendar_conflicts_defaults_to_today_with_no_date_phrase(tmp_path):
+    # "any double-booked days" names no recognizable date phrase at all -
+    # extract_date_range only understands relative phrases, not a bare,
+    # date-less question like this, so it should default to today rather
+    # than erroring or silently returning nothing.
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    calendar_store.upsert_event(_event("e1", "Design Review", "2024-06-10T10:00:00+00:00", "2024-06-10T11:00:00+00:00"))
+    calendar_store.upsert_event(_event("e2", "1:1 with Nick", "2024-06-10T10:30:00+00:00", "2024-06-10T11:30:00+00:00"))
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "any double-booked days", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert "Yes" in result.answer
+    assert "2024-06-10" in result.answer

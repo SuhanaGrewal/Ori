@@ -9,7 +9,7 @@ from typing import Any, Literal
 from meridian.digest.gather import gather_items
 from meridian.inbox_intelligence.stale_threads import find_stale_threads
 from meridian.query.anthropic_client import call_claude
-from meridian.query.date_range import extract_date_range
+from meridian.query.date_range import extract_date_range, parse_stored_date
 from meridian.query.router_prompt import (
     CLASSIFY_SYSTEM_PROMPT,
     MATCH_DRAFT_TARGET_SYSTEM_PROMPT,
@@ -27,7 +27,8 @@ from meridian.replies.drafting import MessageNotFoundError, draft_reply_for_mess
 from meridian.security.audit_log import record_event
 
 Intent = Literal[
-    "stale_threads", "commitments", "resolve", "broad_summary", "reminder", "draft_reply", "general"
+    "stale_threads", "commitments", "resolve", "broad_summary", "reminder", "draft_reply",
+    "calendar_conflicts", "general",
 ]
 
 # default backward-looking window for a broad ask with no recognized date
@@ -106,6 +107,8 @@ def classify_intent(
         return "reminder"
     if "DRAFT_REPLY" in normalized:
         return "draft_reply"
+    if "CALENDAR_CONFLICTS" in normalized:
+        return "calendar_conflicts"
     return "general"
 
 
@@ -338,6 +341,66 @@ def _resolve_matching_item(
     return "Marked resolved: " + "; ".join(resolved_labels)
 
 
+def _check_calendar_conflicts(text: str, calendar_store: Any, *, now: datetime) -> str:
+    """purely deterministic pairwise interval-overlap check over calendar
+    events in the referenced date range - no LLM judgment for the actual
+    comparison, matching this project's existing "deterministic over LLM"
+    philosophy for anything computable directly from a document's own
+    stored timestamps (see date_range.py). The only LLM involvement
+    anywhere in this path is classify_intent() picking this intent in the
+    first place.
+
+    Comparing two already-retrieved items against each other for a
+    derived fact (do these time ranges overlap) has no single-document
+    retrieval() equivalent at all - single-document retrieval can find
+    either event individually but has no mechanism to notice a relation
+    *between* them, which is why this needs its own intent rather than
+    being answered through the normal retrieve()/ask() path.
+
+    Defaults to today when the question names no recognizable date phrase
+    - extract_date_range only understands relative phrases (weekday
+    names, "this week," etc.), not absolute calendar dates like "July
+    18," a pre-existing limitation shared by every other date-scoped
+    feature in this project already, not new here."""
+    date_range = extract_date_range(text, now=now)
+    if date_range is None:
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        date_range = start, start + timedelta(days=1)
+    start, end = date_range
+
+    events = []
+    for row in calendar_store.list_events_upcoming(start.isoformat(), end.isoformat()):
+        event_start = parse_stored_date(row["start_at"])
+        event_end = parse_stored_date(row["end_at"])
+        if event_start is None or event_end is None:
+            # no usable time range to compare - excluded rather than
+            # guessed, same "fail open by skipping" spirit as
+            # chunk_in_range's own handling of missing/unparseable dates.
+            continue
+        events.append((row["summary"] or "(untitled event)", event_start, event_end))
+
+    if not events:
+        return f"No calendar events found for {start.date().isoformat()}."
+
+    conflicts = [
+        (events[i], events[j])
+        for i in range(len(events))
+        for j in range(i + 1, len(events))
+        if events[i][1] < events[j][2] and events[j][1] < events[i][2]
+    ]
+
+    if not conflicts:
+        return f"No overlapping meetings found among {len(events)} event(s) on {start.date().isoformat()}."
+
+    lines = [f"Yes, {len(conflicts)} overlap(s) found on {start.date().isoformat()}:"]
+    for (name_a, start_a, end_a), (name_b, start_b, end_b) in conflicts:
+        lines.append(
+            f"'{name_a}' ({start_a.strftime('%H:%M')}-{end_a.strftime('%H:%M')}) overlaps "
+            f"'{name_b}' ({start_b.strftime('%H:%M')}-{end_b.strftime('%H:%M')})"
+        )
+    return "\n".join(lines)
+
+
 def route(
     text: str,
     *,
@@ -377,6 +440,8 @@ def route(
     if intent == "reminder" and reminder_store is None:
         intent = "general"
     if intent == "draft_reply" and draft_store is None:
+        intent = "general"
+    if intent == "calendar_conflicts" and calendar_store is None:
         intent = "general"
 
     if intent in ("stale_threads", "resolve", "draft_reply") and account_email is None:
@@ -441,5 +506,9 @@ def route(
             client=client, model=model, analyzer=analyzer, logger=logger, audit_log_dir=audit_log_dir,
         )
         return RouterResult(intent="draft_reply", answer=answer)
+
+    if intent == "calendar_conflicts":
+        answer = _check_calendar_conflicts(text, calendar_store, now=now)
+        return RouterResult(intent="calendar_conflicts", answer=answer)
 
     return RouterResult(intent="general", answer=None)

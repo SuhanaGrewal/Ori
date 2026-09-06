@@ -5,7 +5,7 @@ import numpy as np
 from meridian.conversation.store import ConversationStore
 from meridian.indexing.parent_child import ChunkRecord
 from meridian.indexing.store import IndexStore
-from meridian.query.answer import _was_actually_rewritten, ask
+from meridian.query.answer import _was_actually_rewritten, ask, ask_with_compound_split
 
 _NOW = datetime(2024, 6, 12, 15, 30, tzinfo=timezone.utc)
 
@@ -85,6 +85,22 @@ class _FakeMultiReplyMessages:
 class _FakeMultiReplyClient:
     def __init__(self, replies):
         self.messages = _FakeMultiReplyMessages(replies)
+
+
+class _QuestionAwareFakeReranker:
+    """unlike _FakeReranker above, scores depend on the question too, not
+    just the candidate text - needed to prove ask_with_compound_split()
+    actually retrieves relevant content independently per sub-question,
+    not just once for the original two-topic question."""
+
+    def predict(self, pairs):
+        scores = []
+        for question, text in pairs:
+            if "pan" in question.lower():
+                scores.append(10.0 if "pan" in text.lower() else -10.0)
+            else:
+                scores.append(10.0 if "laptop" in text.lower() else -10.0)
+        return scores
 
 
 class _RaisingClient:
@@ -688,3 +704,78 @@ def test_ask_does_not_record_turns_when_abstaining(tmp_path):
     )
 
     assert conversation_store.list_turns("thread-1") == []
+
+
+def test_ask_with_compound_split_falls_through_to_ask_for_a_single_question(tmp_path):
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    _seed_high_confidence_chunk(store, "your pan application is approved", query_vec)
+    client = _FakeMultiReplyClient(["SINGLE", "Your PAN application is approved [1]."])
+
+    result = ask_with_compound_split(
+        "whats my pan status", store=store, embedder=_FakeEmbedder(query_vec), reranker=_FakeReranker({}),
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+    )
+
+    assert result.abstained is False
+    assert result.answer == "Your PAN application is approved [1]."
+    assert len(client.messages.calls) == 2  # split-check, then the normal single-question ask()
+
+
+def test_ask_with_compound_split_answers_both_halves_of_a_genuinely_compound_question(tmp_path):
+    # real bug: a genuinely two-topic question aborted retrieval entirely
+    # instead of answering either half - a single embedding/search pass
+    # over both topics dilutes toward neither one well enough to clear
+    # the confidence threshold that either topic alone clears easily on
+    # its own.
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "msg-pan",
+        [ChunkRecord(text="your pan application is approved", parent_text="your pan application is approved", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "PAN", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "msg-laptop",
+        [ChunkRecord(text="laptop drop off is monday", parent_text="laptop drop off is monday", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "IT Kit", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    client = _FakeMultiReplyClient([
+        "What is my pan application status?\nWhen do I need to drop off my laptop?",
+        "Your PAN application is approved [1].",
+        "You need to drop off your laptop on Monday [1].",
+    ])
+
+    result = ask_with_compound_split(
+        "whats my pan status and also whats the laptop drop off date",
+        store=store, embedder=_FakeEmbedder(query_vec), reranker=_QuestionAwareFakeReranker(),
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+    )
+
+    assert result.abstained is False
+    assert "What is my pan application status?" in result.answer
+    assert "Your PAN application is approved [1]." in result.answer
+    assert "When do I need to drop off my laptop?" in result.answer
+    # renumbered, not a citation collision with the first sub-answer's [1]
+    assert "You need to drop off your laptop on Monday [3]." in result.answer
+    assert result.chunks[0].source_item_id == "msg-pan"
+    assert result.chunks[2].source_item_id == "msg-laptop"
+    assert len(client.messages.calls) == 3  # split-check + one answer call per sub-question
+
+
+def test_ask_with_compound_split_abstains_when_both_halves_abstain(tmp_path):
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    client = _FakeMultiReplyClient([
+        "What is my pan application status?\nWhen do I need to drop off my laptop?",
+    ])
+
+    result = ask_with_compound_split(
+        "whats my pan status and also whats the laptop drop off date",
+        store=store, embedder=_FakeEmbedder(query_vec), reranker=_FakeReranker({}),
+        analyzer=_FakeAnalyzer(), client=client, model="claude-haiku-4-5", now=_NOW,
+    )
+
+    assert result.abstained is True
+    assert result.answer is None
+    assert result.chunks == []

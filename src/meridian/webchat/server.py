@@ -23,7 +23,7 @@ from meridian.ingestion.docs.store import DocsStore
 from meridian.ingestion.gmail.store import GmailStore
 from meridian.ingestion.local_files.store import NotesStore
 from meridian.query.anthropic_client import build_client
-from meridian.query.answer import ask
+from meridian.query.answer import ask_with_compound_split
 from meridian.query.prompt import build_abstain_message
 from meridian.query.reranker import build_reranker
 from meridian.query.router import route
@@ -266,7 +266,7 @@ def query(body: QueryBody) -> dict[str, Any]:
             }
 
     conversation_store = ConversationStore(per_user_config.conversation_dir / "conversations.db") if body.thread_id else None
-    result = ask(
+    result = ask_with_compound_split(
         body.question,
         store=stores["index_store"],
         embedder=_embedder,

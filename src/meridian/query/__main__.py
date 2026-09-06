@@ -14,7 +14,7 @@ from meridian.ingestion.docs.store import DocsStore
 from meridian.ingestion.gmail.store import GmailStore
 from meridian.ingestion.local_files.store import NotesStore
 from meridian.query.anthropic_client import build_client
-from meridian.query.answer import ask
+from meridian.query.answer import ask_with_compound_split
 from meridian.query.history import record_question
 from meridian.query.history_store import QueryHistoryStore
 from meridian.query.prompt import build_abstain_message
@@ -107,7 +107,7 @@ def main() -> None:
 
     conversation_store = ConversationStore(config.conversation_dir / "conversations.db") if args.thread else None
 
-    result = ask(
+    result = ask_with_compound_split(
         args.question,
         store=store,
         embedder=embedder,

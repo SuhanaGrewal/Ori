@@ -144,6 +144,29 @@ def build_tiebreak_user_message(question: str, candidate_text: str) -> str:
     return f"Question:\n{question}\n\nCandidate context:\n{candidate_text}"
 
 
+SPLIT_COMPOUND_SYSTEM_PROMPT = (
+    "Decide whether the user's question is genuinely asking about TWO OR "
+    "MORE distinct, unrelated topics or items that would each need a "
+    "separate search to answer (e.g. \"what's my pan application status "
+    "and also when do i need to drop off my laptop\" - two unrelated "
+    "items, a PAN application and a laptop). This is different from a "
+    "single question with multiple clauses about the SAME topic or item "
+    "(e.g. \"what's my pan status and when will it be delivered\" - both "
+    "parts are about the one PAN application, so this is NOT compound), "
+    "or a question merely phrased with an \"and\" that's really one ask "
+    "(e.g. \"what did jane say about the budget and timeline\" - one "
+    "email thread, one topic).\n\n"
+    "If it is NOT genuinely compound, respond with ONLY the word SINGLE, "
+    "nothing else - no punctuation, no explanation.\n\n"
+    "If it IS genuinely compound, rewrite it as separate, self-contained "
+    "questions, one per line, nothing else on each line - no numbering, "
+    "no bullets, no blank lines. Each sub-question must stand alone "
+    "(resolve any shared pronouns/context from the original) and "
+    "otherwise preserve the user's original wording as closely as "
+    "possible."
+)
+
+
 _ABSTAIN_REASON_TEMPLATES = {
     "no_candidates": 'Nothing in your indexed email, calendar, docs, or notes looks related to "{question}".',
     "no_candidates_in_date_range": 'Found content related to "{question}", but none of it falls in that date range.',

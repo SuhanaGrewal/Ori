@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,10 +14,12 @@ from meridian.conversation.followup import rewrite_followup_question
 from meridian.indexing.embedder import embed_chunks
 from meridian.indexing.store import IndexStore
 from meridian.query.anthropic_client import call_claude
+from meridian.query.compound import maybe_split_compound_question
 from meridian.query.date_range import extract_date_range, is_forward_looking_range
 from meridian.query.prompt import (
     SYSTEM_PROMPT,
     TIEBREAK_SYSTEM_PROMPT,
+    build_abstain_message,
     build_tiebreak_user_message,
     build_user_message,
     format_sources,
@@ -311,4 +314,121 @@ def ask(
         answer=answer,
         sources=format_sources(result.chunks, now=now),
         llm_configured=True,
+    )
+
+
+def _renumber_citations(answer_text: str, offset: int) -> str:
+    """shifts every [N] bracket marker in a sub-answer up by offset, so
+    citations from several independently-run ask() calls can be
+    concatenated into one answer without collisions - each sub-answer's
+    own retrieve() numbers its chunks starting from [1], same as any
+    other single question."""
+    return re.sub(r"\[(\d+)\]", lambda m: f"[{int(m.group(1)) + offset}]", answer_text)
+
+
+def ask_with_compound_split(
+    question: str,
+    *,
+    store: IndexStore,
+    embedder: Any,
+    reranker: Any,
+    analyzer: Any,
+    client: Any,
+    model: str,
+    source: str | None = None,
+    excluded_sources: frozenset[str] | None = None,
+    now: datetime | None = None,
+    logger: logging.Logger | None = None,
+    audit_log_dir: Path | None = None,
+    conversation_id: str | None = None,
+    conversation_store: Any = None,
+) -> AnswerResult:
+    """wraps ask() with a compound-question check: a question genuinely
+    asking about two or more distinct, unrelated topics (e.g. "whats my
+    pan status and also whats the laptop drop off date") previously
+    aborted retrieval entirely instead of answering either half - a
+    single embedding/search pass over a two-topic question dilutes toward
+    neither topic well enough to clear the confidence threshold, unlike
+    either topic asked alone. Splitting first and running ask()
+    independently per sub-question, then combining, fixes that without
+    touching ask()'s own single-question pipeline at all (still used
+    directly by digest/__main__.py and anywhere else a question is never
+    compound).
+
+    The common, single-question case still costs one extra, cheap
+    classification call (same "ask a small model first" pattern as
+    rewrite_followup_question) - proportionally negligible next to the
+    full retrieval + generation pipeline that follows either way.
+
+    Conversation history is intentionally NOT threaded into the per-
+    sub-question ask() calls: each sub-question is expected to already be
+    self-contained (the split prompt is explicitly told to resolve shared
+    pronouns/context from the original), and re-running follow-up
+    rewriting per sub-question would risk each one independently latching
+    onto stale prior-turn context. Only the combined result is recorded
+    as a single new turn pair, matching ask()'s own "only successful
+    answers get recorded" rule, extended here to only when at least one
+    sub-question actually answered."""
+    sub_questions = maybe_split_compound_question(
+        question, client=client, model=model, analyzer=analyzer, logger=logger, audit_log_dir=audit_log_dir,
+    )
+    if sub_questions is None:
+        return ask(
+            question, store=store, embedder=embedder, reranker=reranker, analyzer=analyzer, client=client,
+            model=model, source=source, excluded_sources=excluded_sources, now=now, logger=logger,
+            audit_log_dir=audit_log_dir, conversation_id=conversation_id, conversation_store=conversation_store,
+        )
+
+    results = [
+        ask(
+            sub_question, store=store, embedder=embedder, reranker=reranker, analyzer=analyzer, client=client,
+            model=model, source=source, excluded_sources=excluded_sources, now=now, logger=logger,
+            audit_log_dir=audit_log_dir,
+        )
+        for sub_question in sub_questions
+    ]
+
+    if all(result.abstained for result in results):
+        return AnswerResult(
+            question=question,
+            chunks=[],
+            confidence=0.0,
+            abstained=True,
+            abstain_reason=results[0].abstain_reason,
+            answer=None,
+            sources=None,
+            llm_configured=client is not None,
+        )
+
+    combined_chunks: list[RetrievedChunk] = []
+    parts = []
+    for sub_question, result in zip(sub_questions, results):
+        if result.abstained:
+            parts.append(f"{sub_question}\n{build_abstain_message(sub_question, result.abstain_reason or 'low_confidence')}")
+            continue
+        if result.answer is None:
+            parts.append(f"{sub_question}\nLLM not configured - showing retrieval only.")
+            combined_chunks.extend(result.chunks)
+            continue
+        offset = len(combined_chunks)
+        parts.append(f"{sub_question}\n{_renumber_citations(result.answer, offset)}")
+        combined_chunks.extend(result.chunks)
+
+    combined_answer = "\n\n".join(parts)
+
+    if conversation_id is not None and conversation_store is not None:
+        conversation_store.add_turn(conversation_id, "user", question)
+        conversation_store.add_turn(
+            conversation_id, "assistant", combined_answer, chunk_ids=[chunk.chunk_id for chunk in combined_chunks]
+        )
+
+    return AnswerResult(
+        question=question,
+        chunks=combined_chunks,
+        confidence=max((result.confidence for result in results), default=0.0),
+        abstained=False,
+        abstain_reason=None,
+        answer=combined_answer,
+        sources=format_sources(combined_chunks, now=now) if combined_chunks else None,
+        llm_configured=client is not None,
     )
