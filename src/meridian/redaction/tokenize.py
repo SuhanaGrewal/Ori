@@ -27,6 +27,27 @@ def _span_priority(span: Any) -> float:
     return getattr(span, "score", -1.0)
 
 
+def _extend_over_wrapping_brackets(text: str, start: int, end: int) -> tuple[int, int]:
+    """extends a span to consume immediately-surrounding literal '<'/'>'
+    characters - a real, extremely common email convention ("Name
+    <email@domain>" in From/To headers). Without this, replacing just the
+    inner value nests the placeholder's OWN angle-bracket syntax inside
+    the real ones: "Billy Wardrop <<EMAIL_ADDRESS_1>>" instead of a clean
+    "Billy Wardrop <EMAIL_ADDRESS_1>" - confirmed via real testing (traced
+    the exact tokenized text sent to the model, not guessed) that this
+    nested-bracket mangling was confusing enough that the model failed to
+    recognize an email address sitting directly next to a person's name
+    in a header as belonging to them, and denied the address was present
+    at all despite citing it. Only the immediately-adjacent single
+    brackets are consumed (not e.g. a further-nested "<mailto:...>" a few
+    characters later), so a deeply-nested quoted-reply chain may still
+    have some residual bracket noise - a smaller remaining edge case,
+    not one this fix claims to fully resolve."""
+    if start > 0 and text[start - 1] == "<" and end < len(text) and text[end] == ">":
+        return start - 1, end + 1
+    return start, end
+
+
 def _resolve_overlaps(spans: list[Any]) -> list[Any]:
     """resolves overlapping spans - presidio itself can return multiple
     recognizers matching the same text (e.g. a credit card number also
@@ -101,10 +122,11 @@ def tokenize_for_external_call(
     counters: dict[str, int] = {}
     value_to_idx: dict[tuple[str, str], int] = {}
     canonical_text: dict[tuple[str, int], str] = {}
-    labeled: list[tuple[Any, int | None]] = []
+    labeled: list[tuple[int, int, str, int | None]] = []
     for span in sorted(spans, key=lambda s: s.start):
+        sub_start, sub_end = _extend_over_wrapping_brackets(text, span.start, span.end)
         if span.entity_type in HARD_SECRET_ENTITIES:
-            labeled.append((span, None))
+            labeled.append((sub_start, sub_end, span.entity_type, None))
             continue
         exact_text = text[span.start : span.end]
         value_key = (span.entity_type, exact_text.casefold())
@@ -118,20 +140,20 @@ def tokenize_for_external_call(
             idx = counters[span.entity_type]
             value_to_idx[value_key] = idx
             canonical_text[(span.entity_type, idx)] = exact_text
-        labeled.append((span, idx))
+        labeled.append((sub_start, sub_end, span.entity_type, idx))
 
     mapping: dict[str, str] = {}
     entity_counts: dict[str, int] = {}
     tokenized = text
-    for span, idx in sorted(labeled, key=lambda item: item[0].start, reverse=True):
-        entity_counts[span.entity_type] = entity_counts.get(span.entity_type, 0) + 1
+    for sub_start, sub_end, entity_type, idx in sorted(labeled, key=lambda item: item[0], reverse=True):
+        entity_counts[entity_type] = entity_counts.get(entity_type, 0) + 1
         if idx is None:
             replacement = "[REDACTED]"
         else:
-            placeholder = f"<{span.entity_type}_{idx}>"
-            mapping[placeholder] = canonical_text[(span.entity_type, idx)]
+            placeholder = f"<{entity_type}_{idx}>"
+            mapping[placeholder] = canonical_text[(entity_type, idx)]
             replacement = placeholder
-        tokenized = tokenized[: span.start] + replacement + tokenized[span.end :]
+        tokenized = tokenized[:sub_start] + replacement + tokenized[sub_end:]
 
     if logger is not None:
         logger.info(

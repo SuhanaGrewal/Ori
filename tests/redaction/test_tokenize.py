@@ -240,6 +240,44 @@ def test_tokenize_distinct_values_of_same_type_still_get_separate_placeholders()
     assert result.mapping == {"<PERSON_1>": "Billy Wardrop", "<PERSON_2>": "Billy Smith"}
 
 
+def test_tokenize_consumes_wrapping_brackets_in_email_header_format():
+    # real bug, found by reconstructing the exact tokenized text sent to
+    # the model for a live failing question: an email header's "Name
+    # <email@domain>" format left the placeholder NESTED inside the
+    # original literal brackets - "Billy Wardrop <<EMAIL_ADDRESS_1>>" -
+    # since only the inner address substring (not the surrounding "<"/">")
+    # was ever part of the matched span. That nested-bracket mangling was
+    # confusing enough that the model denied an email address was present
+    # at all, despite it sitting right next to the person's own name and
+    # being cited as a source. Fix: extend the span to consume immediately
+    # -adjacent literal brackets, so the placeholder cleanly replaces the
+    # whole "<email>" unit instead of nesting inside it.
+    text = "From: Billy Wardrop <Billy.Wardrop@ed.ac.uk>"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=6, end=19),
+            Span(entity_type="EMAIL_ADDRESS", start=21, end=43),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "From: <PERSON_1> <EMAIL_ADDRESS_1>"
+    assert result.mapping == {
+        "<PERSON_1>": "Billy Wardrop",
+        "<EMAIL_ADDRESS_1>": "Billy.Wardrop@ed.ac.uk",
+    }
+
+
+def test_tokenize_does_not_extend_over_brackets_that_are_not_adjacent():
+    text = "email: Billy.Wardrop@ed.ac.uk (no brackets here)"
+    analyzer = _FakeAnalyzer([Span(entity_type="EMAIL_ADDRESS", start=7, end=29)])
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "email: <EMAIL_ADDRESS_1> (no brackets here)"
+
+
 def test_tokenize_hard_secret_becomes_redacted_marker_not_in_mapping():
     text = "card: 4111111111111111"
     analyzer = _FakeAnalyzer([Span(entity_type="CREDIT_CARD", start=6, end=22)])
