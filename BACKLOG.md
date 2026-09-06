@@ -562,6 +562,17 @@ message's `TimeoutError` mid-sync. Fixed by catching `TimeoutError`/
 
 ## Also found, not yet actioned
 
+### 24. Open-commitments list isn't prioritized
+Found via CEO-persona testing: `"what do I owe people, any open
+commitments"` returns every open commitment as a flat, unordered list
+(`_format_commitments()` in `query/router.py` just iterates
+`list_open_commitments()` in whatever order the store returns them). A
+busy-executive user wants the most urgent/overdue ones first, not a
+random-order dump. Commitments already carry a `due_date` (nullable) -
+sorting by that (soonest/overdue first, no-due-date last) would be a
+small, low-risk fix. Not done this iteration - noted for a future pass
+rather than bundled in with #23.
+
 ### 5. No consumer-facing interface
 CLI-only today — no chat window. Native calendar notifications exist now
 (#12); a chat window backend piece exists now too (#22's
