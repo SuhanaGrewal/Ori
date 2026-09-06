@@ -242,7 +242,16 @@ def query(body: QueryBody) -> dict[str, Any]:
             audit_log_dir=per_user_config.log_dir,
         )
         if router_result.answer is not None:
-            return {"id": answer_id, "question": body.question, "answer": router_result.answer, "citations": []}
+            # router_result.citations is already {label, detail}-shaped
+            # (see query/router.py) - cited_chunks() just narrows it to
+            # the [N] bracket numbers actually referenced in the answer's
+            # prose, no chunk_to_citation() mapping step needed since
+            # these were never RetrievedChunk objects in the first place.
+            router_citations = cited_chunks(router_result.answer, router_result.citations)
+            return {
+                "id": answer_id, "question": body.question, "answer": router_result.answer,
+                "citations": router_citations,
+            }
 
     conversation_store = ConversationStore(per_user_config.conversation_dir / "conversations.db") if body.thread_id else None
     result = ask(

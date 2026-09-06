@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -55,6 +55,16 @@ class RouterResult:
     # that fallback in the caller avoids duplicating ask()'s own
     # abstain-handling and formatting here.
     answer: str | None
+    # {label, detail} dicts, in the same [N] bracket order the LLM was
+    # given (see build_stale_threads_user_message / build_broad_ask_user_
+    # message) - already in the exact shape webchat/citations.py's
+    # cited_chunks() expects, so a caller narrows this the same way it
+    # narrows query.answer.ask()'s chunks, no separate mapping step
+    # needed. Empty for every intent whose answer doesn't cite anything by
+    # bracket number in the first place (commitments/resolve/reminder/
+    # draft_reply all produce plain confirmation/clarification text, not
+    # numbered-source prose) - not a gap for those, there's nothing to cite.
+    citations: list[dict[str, str]] = field(default_factory=list)
 
 
 def _call_llm(
@@ -142,14 +152,19 @@ def _summarize_broad_ask(
     analyzer: Any,
     logger: logging.Logger | None = None,
     audit_log_dir: Path | None = None,
-) -> str:
+) -> tuple[str, list[dict[str, Any]]]:
     """reuses digest/gather.py's gather_items() rather than reimplementing
     "grab everything recent" - this is exactly the same problem the
     digest already solves, just triggered by a direct question instead
     of a scheduled job. If the question itself names a recognizable
     window ("this week," "last month"), that's honored; otherwise a
     default 7-day lookback is used, same philosophy as digest's own
-    lookback-hours default."""
+    lookback-hours default.
+
+    Returns (answer, items) rather than just the answer - route() needs
+    the same numbered items list to build RouterResult.citations, matching
+    the [N] bracket order the LLM was actually given (see
+    build_broad_ask_user_message)."""
     date_range = extract_date_range(text, now=now)
     since = date_range[0] if date_range is not None else now - timedelta(days=_DEFAULT_BROAD_ASK_LOOKBACK_DAYS)
     lookahead_end = now + timedelta(days=_DEFAULT_BROAD_ASK_LOOKAHEAD_DAYS)
@@ -165,14 +180,16 @@ def _summarize_broad_ask(
         # searched.
         return (
             f'Nothing new found for "{text}" across email, calendar, docs, or notes '
-            f"between {since.date().isoformat()} and {now.date().isoformat()}."
+            f"between {since.date().isoformat()} and {now.date().isoformat()}.",
+            [],
         )
 
     user_message = build_broad_ask_user_message(text, items)
-    return _call_llm(
+    answer = _call_llm(
         client=client, model=model, system=SUMMARIZE_BROAD_ASK_SYSTEM_PROMPT, text=user_message,
         analyzer=analyzer, logger=logger, audit_log_dir=audit_log_dir, operation="query.router_broad_summary",
     )
+    return answer, items
 
 
 def _handle_reminder(
@@ -376,7 +393,8 @@ def route(
         answer = _summarize_stale_threads(
             text, threads, client=client, model=model, analyzer=analyzer, logger=logger, audit_log_dir=audit_log_dir
         )
-        return RouterResult(intent="stale_threads", answer=answer)
+        citations = [{"label": t.last_sender, "detail": t.subject} for t in threads]
+        return RouterResult(intent="stale_threads", answer=answer, citations=citations)
 
     if intent == "commitments":
         answer = _format_commitments(inbox_store.list_open_commitments())
@@ -400,12 +418,18 @@ def route(
         return RouterResult(intent="reminder", answer=answer)
 
     if intent == "broad_summary":
-        answer = _summarize_broad_ask(
+        answer, items = _summarize_broad_ask(
             text, gmail_store=gmail_store, calendar_store=calendar_store, docs_store=docs_store,
             notes_store=notes_store, entity_store=entity_store, now=now,
             client=client, model=model, analyzer=analyzer, logger=logger, audit_log_dir=audit_log_dir,
         )
-        return RouterResult(intent="broad_summary", answer=answer)
+        # broad_summary's items come pre-formatted as one descriptive
+        # string per source (see digest/gather.py) rather than the clean
+        # separate label/detail fields a StaleThread has - reusing the
+        # item's own label as both fields is a reasonable best-effort
+        # citation here rather than forcing a split that doesn't exist.
+        citations = [{"label": item["label"], "detail": item.get("detail", "")} for item in items]
+        return RouterResult(intent="broad_summary", answer=answer, citations=citations)
 
     if intent == "draft_reply":
         threads = find_stale_threads(

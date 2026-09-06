@@ -168,6 +168,25 @@ def test_route_stale_threads_summarizes_via_second_llm_call(tmp_path):
     assert len(client.messages.calls) == 2
 
 
+def test_route_stale_threads_returns_citations_matching_threads(tmp_path):
+    # real bug: router-handled answers (as opposed to query.answer.ask())
+    # never carried citations through to the API response at all, even
+    # though the LLM is explicitly told to and does cite threads by
+    # bracket number in its prose - confirmed live via CEO-persona
+    # testing (webchat/server.py always returned citations: []).
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    gmail_store.upsert_message(_message("m1", "t1", "Alice <alice@example.com>", "2024-06-05T00:00:00+00:00", subject="Budget"))
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    client = _FakeClient(["STALE_THREADS", "Alice is waiting to hear back from you about the budget [1]."])
+
+    result = route(
+        "any threads need my approval", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+    )
+
+    assert result.citations == [{"label": "Alice <alice@example.com>", "detail": "Budget"}]
+
+
 def test_route_stale_threads_with_no_threads_skips_second_llm_call(tmp_path):
     gmail_store = GmailStore(tmp_path / "gmail.db")
     inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
@@ -375,6 +394,27 @@ def test_route_broad_summary_gathers_and_summarizes(tmp_path):
     assert result.intent == "broad_summary"
     assert result.answer == "You got one email from Alice this week [1]."
     assert len(client.messages.calls) == 2
+
+
+def test_route_broad_summary_returns_citations_matching_items(tmp_path):
+    # same router-citations bug as stale_threads, confirmed live for
+    # broad_summary too ("whats most urgent right now" cited 15 bracket
+    # numbers in prose but got citations: [] back).
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    gmail_store.upsert_message(_message("m1", "t1", "Alice <alice@example.com>", "2024-06-08T00:00:00+00:00", subject="Budget"))
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store, docs_store, notes_store, entity_store = _empty_broad_ask_stores(tmp_path)
+    client = _FakeClient(["BROAD_SUMMARY", "You got one email from Alice this week [1]."])
+
+    result = route(
+        "summarize my recent emails", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store, docs_store=docs_store, notes_store=notes_store, entity_store=entity_store,
+    )
+
+    assert len(result.citations) == 1
+    assert "Alice" in result.citations[0]["label"]
+    assert "Budget" in result.citations[0]["label"]
 
 
 def test_route_broad_summary_with_nothing_gathered_skips_second_llm_call(tmp_path):
