@@ -164,6 +164,15 @@ def test_tokenize_reuses_placeholder_across_case_difference():
     # "billy wardrop" and "Billy Wardrop" ARE detected as PERSON spans
     # regardless of case - the bug was purely in placeholder assignment,
     # not entity detection).
+    #
+    # The stored mapping value must be the properly-cased "Billy Wardrop",
+    # not the lowercase question text - found via a second real bug this
+    # same fix introduced initially (storing whichever occurrence is
+    # leftmost): build_user_message always puts the question before the
+    # numbered context blocks, so a question that itself names the person
+    # is always leftmost, and untokenize() rendered every occurrence -
+    # including ones quoted from the properly-capitalized source email -
+    # in the user's own casual lowercase.
     text = "who is billy wardrop\n\nfrom: Billy Wardrop"
     analyzer = _FakeAnalyzer(
         [
@@ -175,13 +184,13 @@ def test_tokenize_reuses_placeholder_across_case_difference():
     result = tokenize_for_external_call(text, analyzer=analyzer)
 
     assert result.tokenized_text == "who is <PERSON_1>\n\nfrom: <PERSON_1>"
-    assert result.mapping == {"<PERSON_1>": "billy wardrop"}
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop"}
 
 
 def test_tokenize_reuses_placeholder_across_case_difference_for_email_address():
     # same bug, confirmed a second way in real testing: a lowercase email
     # address in the question vs. the capitalized address in the actual
-    # message header.
+    # message header. Stored value must be the properly-cased address.
     text = "anything from billy.wardrop@ed.ac.uk\n\nfrom: Billy.Wardrop@ed.ac.uk"
     analyzer = _FakeAnalyzer(
         [
@@ -195,7 +204,25 @@ def test_tokenize_reuses_placeholder_across_case_difference_for_email_address():
     assert result.tokenized_text == (
         "anything from <EMAIL_ADDRESS_1>\n\nfrom: <EMAIL_ADDRESS_1>"
     )
-    assert result.mapping == {"<EMAIL_ADDRESS_1>": "billy.wardrop@ed.ac.uk"}
+    assert result.mapping == {"<EMAIL_ADDRESS_1>": "Billy.Wardrop@ed.ac.uk"}
+
+
+def test_tokenize_keeps_properly_cased_value_when_it_occurs_first():
+    # order independence: when the properly-cased occurrence comes first
+    # and a lowercase one follows, the canonical value should still be
+    # the properly-cased form (not overwritten by the later lowercase
+    # occurrence).
+    text = "from: Billy Wardrop\n\nwho is billy wardrop"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=6, end=19),
+            Span(entity_type="PERSON", start=28, end=41),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop"}
 
 
 def test_tokenize_distinct_values_of_same_type_still_get_separate_placeholders():

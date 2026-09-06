@@ -82,33 +82,42 @@ def tokenize_for_external_call(
     # (not fuzzy/partial name matching) to stay conservative - "Billy" and
     # "Billy Wardrop" still get separate placeholders, which is a real but
     # much smaller remaining gap than assigning no shared identity at all.
+    #
+    # casefold, not the raw substring, for the dedup key itself: the same
+    # real person/email written in different casing (a formal email
+    # header's "Billy Wardrop" vs. a casually-typed question's "billy
+    # wardrop") is still the same entity. Which exact casing gets stored
+    # for that shared placeholder is a separate decision - prefer a
+    # non-lowercase occurrence (the formal source spelling) over an
+    # all-lowercase one (a casually-typed question) - confirmed via real
+    # testing that "leftmost occurrence wins" put the question's own
+    # lowercase text in the mapping whenever the question mentioned the
+    # entity itself, since build_user_message always puts the question
+    # before the numbered context blocks - so untokenize() rendered every
+    # occurrence of a real proper name in lowercase, including the ones
+    # quoted from a properly-capitalized source. Leftmost is still the
+    # tiebreak when neither or both occurrences are all-lowercase, for
+    # stable, deterministic output.
     counters: dict[str, int] = {}
     value_to_idx: dict[tuple[str, str], int] = {}
+    canonical_text: dict[tuple[str, int], str] = {}
     labeled: list[tuple[Any, int | None]] = []
     for span in sorted(spans, key=lambda s: s.start):
         if span.entity_type in HARD_SECRET_ENTITIES:
             labeled.append((span, None))
             continue
-        # casefold, not the raw substring: the same real person/email
-        # written in different casing (a formal email header's "Billy
-        # Wardrop" vs. a casually-typed question's "billy wardrop") is
-        # still the same entity - confirmed via real testing this was
-        # getting two different placeholder numbers, so the model saw two
-        # unrelated people and could deny one was mentioned while citing
-        # the other as a source for the exact same person. The mapping
-        # still stores whichever occurrence's exact casing was leftmost in
-        # the text (same behavior already used for identical-value dedup
-        # above), so untokenize() restores real, correctly-cased text -
-        # just not necessarily matching every occurrence's own original
-        # casing, an acceptable cosmetic tradeoff for not fragmenting one
-        # person's identity across multiple placeholders.
-        value_key = (span.entity_type, text[span.start : span.end].casefold())
+        exact_text = text[span.start : span.end]
+        value_key = (span.entity_type, exact_text.casefold())
         if value_key in value_to_idx:
             idx = value_to_idx[value_key]
+            canonical_key = (span.entity_type, idx)
+            if canonical_text[canonical_key].islower() and not exact_text.islower():
+                canonical_text[canonical_key] = exact_text
         else:
             counters[span.entity_type] = counters.get(span.entity_type, 0) + 1
             idx = counters[span.entity_type]
             value_to_idx[value_key] = idx
+            canonical_text[(span.entity_type, idx)] = exact_text
         labeled.append((span, idx))
 
     mapping: dict[str, str] = {}
@@ -120,7 +129,7 @@ def tokenize_for_external_call(
             replacement = "[REDACTED]"
         else:
             placeholder = f"<{span.entity_type}_{idx}>"
-            mapping[placeholder] = text[span.start : span.end]
+            mapping[placeholder] = canonical_text[(span.entity_type, idx)]
             replacement = placeholder
         tokenized = tokenized[: span.start] + replacement + tokenized[span.end :]
 
