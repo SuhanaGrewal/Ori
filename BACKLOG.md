@@ -33,6 +33,29 @@ on it yet.
 
 ## Fixed
 
+### 24. Open commitments had no useful tiebreak order for the common case
+Found via a follow-up CEO-persona testing pass: a prior note on this item
+claimed `list_open_commitments()` returned commitments in "whatever order
+the store returns them," which turned out to be only half right on
+closer inspection - the store already had `ORDER BY due_date IS NULL,
+due_date` (soonest-due first, undated last). The real gap: due-date
+extraction is deliberately conservative (see #19's boilerplate-policy
+filtering), so in practice almost every open commitment ends up with no
+due date at all - meaning the existing sort was a no-op for the common
+case, landing on whatever incidental order SQLite happened to return
+ties in. Confirmed against real data: all 4 real open commitments had
+`due_date = NULL`.
+
+`InboxIntelligenceStore.list_open_commitments()` now adds two tiebreak
+keys after the existing due-date sort: `made_by != 'me'` (what the user
+themselves still owes surfaces before what they're just waiting on from
+someone else - only the former needs the user's own action), then
+`detected_at DESC` (most recently found first). Verified against real
+data: the two commitments made by the user now correctly appear first,
+followed by the two made by others - confirmed both directly against the
+store and through `python -m meridian.query "what do I owe people, any
+open commitments"`.
+
 ### 23. "Nothing found" abstain messages didn't say what wasn't found
 Found via CEO-persona real-usage testing (a busy end user with zero
 patience for vague non-answers): asking about something genuinely absent
@@ -561,17 +584,6 @@ message's `TimeoutError` mid-sync. Fixed by catching `TimeoutError`/
 `ConnectionError` and retrying them the same way as a 5xx.
 
 ## Also found, not yet actioned
-
-### 24. Open-commitments list isn't prioritized
-Found via CEO-persona testing: `"what do I owe people, any open
-commitments"` returns every open commitment as a flat, unordered list
-(`_format_commitments()` in `query/router.py` just iterates
-`list_open_commitments()` in whatever order the store returns them). A
-busy-executive user wants the most urgent/overdue ones first, not a
-random-order dump. Commitments already carry a `due_date` (nullable) -
-sorting by that (soonest/overdue first, no-due-date last) would be a
-small, low-risk fix. Not done this iteration - noted for a future pass
-rather than bundled in with #23.
 
 ### 5. No consumer-facing interface
 CLI-only today — no chat window. Native calendar notifications exist now

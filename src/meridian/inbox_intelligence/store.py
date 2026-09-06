@@ -115,8 +115,17 @@ class InboxIntelligenceStore:
         return cursor.rowcount > 0
 
     def list_open_commitments(self) -> list[sqlite3.Row]:
+        """soonest-due first (undated last) was already the primary sort -
+        within a tie (most commonly: multiple undated commitments, since
+        due-date extraction is deliberately conservative, see #19), a
+        busy user wants what THEY still owe surfaced before what they're
+        just waiting on from someone else, and the most recently detected
+        commitment before older ones."""
         return self._conn.execute(
-            "SELECT * FROM commitments WHERE is_resolved = 0 ORDER BY due_date IS NULL, due_date"
+            """
+            SELECT * FROM commitments WHERE is_resolved = 0
+            ORDER BY due_date IS NULL, due_date, made_by != 'me', detected_at DESC
+            """
         ).fetchall()
 
     def count_scanned_messages(self) -> int:

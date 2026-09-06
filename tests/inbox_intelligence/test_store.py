@@ -82,6 +82,28 @@ def test_list_open_commitments_orders_by_due_date_nulls_last(tmp_path):
     ]
 
 
+def test_list_open_commitments_ties_prioritize_what_the_user_owes(tmp_path):
+    # both undated (a common tie, since due-date extraction is
+    # deliberately conservative - see #19) - what the user themselves
+    # still owes should surface before what they're just waiting on from
+    # someone else, since only the former needs the user's own action.
+    store = InboxIntelligenceStore(tmp_path / "commitments.db")
+    store.add_commitment(
+        message_id="m1", thread_id="t1", made_by="other", other_party="a@example.com",
+        description="waiting on someone else", deadline_phrase=None, due_date=None,
+    )
+    store.add_commitment(
+        message_id="m2", thread_id="t2", made_by="me", other_party="b@example.com",
+        description="something I owe", deadline_phrase=None, due_date=None,
+    )
+
+    open_commitments = store.list_open_commitments()
+
+    assert [row["description"] for row in open_commitments] == [
+        "something I owe", "waiting on someone else",
+    ]
+
+
 def test_is_thread_dismissed_false_before_dismissed(tmp_path):
     store = InboxIntelligenceStore(tmp_path / "commitments.db")
 
