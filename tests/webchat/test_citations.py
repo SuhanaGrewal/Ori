@@ -1,4 +1,4 @@
-from meridian.webchat.citations import cited_chunks
+from ori.webchat.citations import cited_chunks
 
 
 def test_cited_chunks_filters_to_only_bracket_numbers_actually_used():

@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from meridian.conversation.store import ConversationStore
-from meridian.indexing.parent_child import ChunkRecord
-from meridian.indexing.store import IndexStore
-from meridian.query.answer import _was_actually_rewritten, ask, ask_with_compound_split
+from ori.conversation.store import ConversationStore
+from ori.indexing.parent_child import ChunkRecord
+from ori.indexing.store import IndexStore
+from ori.query.answer import _was_actually_rewritten, ask, ask_with_compound_split
 
 _NOW = datetime(2024, 6, 12, 15, 30, tzinfo=timezone.utc)
 

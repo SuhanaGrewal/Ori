@@ -1,9 +1,9 @@
 import pytest
 
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.replies.drafting import MessageNotFoundError, draft_reply_for_message
-from meridian.replies.store import DraftStore
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.replies.drafting import MessageNotFoundError, draft_reply_for_message
+from ori.replies.store import DraftStore
 
 _ACCOUNT_EMAIL = "me@example.com"
 

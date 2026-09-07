@@ -1,5 +1,5 @@
 [project]
-name = "meridian"
+name = "ori"
 version = "0.1.0"
 description = "Local-first personal knowledge assistant grounded in Gmail, Calendar, Docs, and local notes/transcripts."
 requires-python = ">=3.11"

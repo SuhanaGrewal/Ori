@@ -1,4 +1,4 @@
-from meridian.webchat.oauth_web_flow import build_web_flow, get_authorization_url
+from ori.webchat.oauth_web_flow import build_web_flow, get_authorization_url
 
 
 def test_build_web_flow_sets_redirect_uri():

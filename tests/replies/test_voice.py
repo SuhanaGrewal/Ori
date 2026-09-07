@@ -1,6 +1,6 @@
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.replies.voice import sample_voice_examples
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.replies.voice import sample_voice_examples
 
 _ACCOUNT_EMAIL = "me@example.com"
 

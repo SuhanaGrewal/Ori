@@ -1,4 +1,4 @@
-from meridian.common.rate_limiter import TokenBucket
+from ori.common.rate_limiter import TokenBucket
 
 
 class FakeClock:

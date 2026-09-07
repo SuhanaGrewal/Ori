@@ -1,6 +1,6 @@
 import json
 
-from meridian.security.audit_log import record_event, verify_audit_log
+from ori.security.audit_log import record_event, verify_audit_log
 
 
 def test_verify_audit_log_missing_file_returns_empty(tmp_path):
@@ -65,7 +65,7 @@ def test_tampering_recomputing_only_that_lines_hash_breaks_the_next_line(tmp_pat
     lines = path.read_text().strip().splitlines()
     tampered = json.loads(lines[0])
     tampered["detail"] = {"scope_count": 999}
-    from meridian.security.audit_log import _line_hash
+    from ori.security.audit_log import _line_hash
 
     tampered["hash"] = _line_hash(
         tampered["timestamp"], tampered["event_type"], tampered["detail"], tampered["prev_hash"]

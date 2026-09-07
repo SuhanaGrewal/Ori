@@ -1,4 +1,4 @@
-from meridian.digest.prompt import (
+from ori.digest.prompt import (
     SYSTEM_PROMPT,
     build_digest_message,
     build_plaintext_digest,

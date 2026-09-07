@@ -3,7 +3,7 @@ import stat
 
 from google.oauth2.credentials import Credentials
 
-from meridian.auth.token_store import EncryptedTokenStore
+from ori.auth.token_store import EncryptedTokenStore
 
 
 def _dummy_credentials() -> Credentials:
@@ -73,7 +73,7 @@ def test_token_saved_before_key_derivation_refactor_still_loads(tmp_path, monkey
     the _get_or_create_key() refactor to derive_or_load_key()."""
     from cryptography.fernet import Fernet
 
-    monkeypatch.delenv("MERIDIAN_ENCRYPTION_PASSPHRASE", raising=False)
+    monkeypatch.delenv("ORI_ENCRYPTION_PASSPHRASE", raising=False)
     pre_existing_key = Fernet.generate_key()
     key_path = tmp_path / "key.bin"
     key_path.write_bytes(pre_existing_key)

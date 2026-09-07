@@ -1,11 +1,11 @@
-from meridian.ingestion.local_files.scan import (
+from ori.ingestion.local_files.scan import (
     DEFAULT_EXTENSIONS,
     ScanStats,
     _iter_note_files,
     _scan_one_file,
     run_scan,
 )
-from meridian.ingestion.local_files.store import NotesStore
+from ori.ingestion.local_files.store import NotesStore
 
 
 def test_scan_stats_defaults_to_zero():

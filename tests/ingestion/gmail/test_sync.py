@@ -5,9 +5,9 @@ import httplib2
 import pytest
 from googleapiclient.errors import HttpError
 
-from meridian.ingestion.gmail.message_parser import parse_message
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.ingestion.gmail.sync import _full_backfill, run_sync
+from ori.ingestion.gmail.message_parser import parse_message
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.gmail.sync import _full_backfill, run_sync
 
 
 def _raw_message(message_id: str) -> dict:
@@ -287,8 +287,8 @@ def test_malformed_message_is_dead_lettered_and_batch_continues(tmp_path):
 
 
 def test_rate_limited_fetch_waits_then_succeeds(monkeypatch, tmp_path):
-    monkeypatch.setattr("meridian.common.google_api.time.sleep", lambda s: None)
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
 
     store = GmailStore(tmp_path / "gmail.db")
     service = _FakeService(
@@ -327,8 +327,8 @@ def test_quota_exhaustion_on_one_message_dead_letters_it_and_batch_continues(mon
     # google_api.py's _is_quota_error), but before this fix, exhausting
     # all 5 retries on it aborted the ENTIRE remaining backfill - every
     # message after the unlucky one was silently lost, not just that one.
-    monkeypatch.setattr("meridian.common.google_api.time.sleep", lambda s: None)
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
 
     store = GmailStore(tmp_path / "gmail.db")
     quota_error = _http_error(403, reason="rateLimitExceeded")

@@ -1,9 +1,9 @@
 import logging
 
-from meridian.common.config import Config
-from meridian.webchat import initial_sync as initial_sync_module
-from meridian.webchat.initial_sync import run_initial_sync
-from meridian.webchat.users_store import WebUsersStore
+from ori.common.config import Config
+from ori.webchat import initial_sync as initial_sync_module
+from ori.webchat.initial_sync import run_initial_sync
+from ori.webchat.users_store import WebUsersStore
 
 
 def _make_config(tmp_path) -> Config:

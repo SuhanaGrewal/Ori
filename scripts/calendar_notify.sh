@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wrapper invoked every minute by the com.meridian.calendarnotify launchd
+# Wrapper invoked every minute by the com.ori.calendarnotify launchd
 # job - a one-shot check each time, not a long-running process (see
 # notifications/calendar_watch.py for why). CALENDAR_NOTIFY_LEAD_MINUTES
 # in .env overrides the default 15-minute lead time.
@@ -16,4 +16,4 @@ if [ -f "$PROJECT_DIR/.env" ]; then
     fi
 fi
 
-"$PROJECT_DIR/.venv/bin/python" -m meridian.notifications check --lead-minutes "$LEAD_MINUTES"
+"$PROJECT_DIR/.venv/bin/python" -m ori.notifications check --lead-minutes "$LEAD_MINUTES"

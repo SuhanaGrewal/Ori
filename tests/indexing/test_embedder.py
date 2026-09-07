@@ -1,6 +1,6 @@
 import numpy as np
 
-from meridian.indexing.embedder import embed_chunks
+from ori.indexing.embedder import embed_chunks
 
 
 class _FakeEmbedder:

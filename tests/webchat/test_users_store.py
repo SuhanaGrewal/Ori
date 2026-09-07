@@ -1,7 +1,7 @@
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
-from meridian.webchat.users_store import WebUsersStore
+from ori.webchat.users_store import WebUsersStore
 
 
 def test_create_user_and_get_profile(tmp_path):

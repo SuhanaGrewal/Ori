@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from meridian.indexing.parent_child import ChunkRecord
-from meridian.indexing.store import IndexStore
-from meridian.query.retrieval import _fetch_and_filter_candidates, retrieve
+from ori.indexing.parent_child import ChunkRecord
+from ori.indexing.store import IndexStore
+from ori.query.retrieval import _fetch_and_filter_candidates, retrieve
 
 
 class _FakeReranker:

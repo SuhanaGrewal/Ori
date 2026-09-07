@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from meridian.ingestion.local_files.note_parser import ParsedNote
-from meridian.ingestion.local_files.store import NotesStore
+from ori.ingestion.local_files.note_parser import ParsedNote
+from ori.ingestion.local_files.store import NotesStore
 
 
 def _note(path="note.txt", content_text="hello", size_bytes=5, mtime_ns=100) -> ParsedNote:

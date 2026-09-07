@@ -3,8 +3,8 @@ import sqlite3
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from meridian.digest.graph import build_digest_graph
-from meridian.query.history_store import QueryHistoryStore
+from ori.digest.graph import build_digest_graph
+from ori.query.history_store import QueryHistoryStore
 
 _INITIAL_STATE = {
     "window_start": "2024-06-01T00:00:00Z",

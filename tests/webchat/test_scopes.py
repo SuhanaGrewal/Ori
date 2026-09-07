@@ -1,4 +1,4 @@
-from meridian.webchat.scopes import revoked_sources
+from ori.webchat.scopes import revoked_sources
 
 _GMAIL = "https://www.googleapis.com/auth/gmail.readonly"
 _CALENDAR = "https://www.googleapis.com/auth/calendar.readonly"

@@ -1,4 +1,4 @@
-from meridian.notifications.store import NotificationStore
+from ori.notifications.store import NotificationStore
 
 
 def test_has_notified_false_for_unknown_event(tmp_path):

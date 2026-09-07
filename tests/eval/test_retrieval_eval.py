@@ -1,5 +1,5 @@
-from meridian.indexing.store import IndexStore
-from meridian.query.retrieval import retrieve
+from ori.indexing.store import IndexStore
+from ori.query.retrieval import retrieve
 from tests.eval.golden_dataset import (
     GOLDEN_DOCS,
     GOLDEN_QUESTIONS,

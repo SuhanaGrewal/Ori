@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repository (Meridian).
+Guidance for Claude Code when working in this repository (Ori).
 
 ## What this is
 
-Meridian is a local-first personal knowledge assistant. It connects to Gmail,
+Ori is a local-first personal knowledge assistant. It connects to Gmail,
 Google Calendar, and Google Docs (read-only OAuth, single consent flow) plus a
 local folder of notes/meeting transcripts, redacts PII before anything leaves
 the machine, builds a hybrid (vector + keyword) index, answers questions with

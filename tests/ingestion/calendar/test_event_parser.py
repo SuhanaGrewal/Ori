@@ -1,6 +1,6 @@
 import pytest
 
-from meridian.ingestion.calendar.event_parser import (
+from ori.ingestion.calendar.event_parser import (
     EventParseError,
     _extract_attendees,
     _extract_organizer_email,
@@ -140,7 +140,7 @@ def test_parse_event_missing_id_raises_event_parse_error():
 
 
 def test_oversized_free_text_fields_are_truncated():
-    from meridian.security.validation import MAX_FIELD_CHARS
+    from ori.security.validation import MAX_FIELD_CHARS
 
     raw = {
         "id": "evt-5",

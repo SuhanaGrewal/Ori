@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from meridian.reminders.scheduling import propose_free_slot
+from ori.reminders.scheduling import propose_free_slot
 
 
 class _FakeCalendarStore:

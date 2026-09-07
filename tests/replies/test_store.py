@@ -1,4 +1,4 @@
-from meridian.replies.store import DraftStore
+from ori.replies.store import DraftStore
 
 
 def test_add_draft_and_get_draft(tmp_path):

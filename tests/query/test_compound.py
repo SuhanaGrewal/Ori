@@ -1,4 +1,4 @@
-from meridian.query.compound import maybe_split_compound_question
+from ori.query.compound import maybe_split_compound_question
 
 
 class _FakeAnalyzer:

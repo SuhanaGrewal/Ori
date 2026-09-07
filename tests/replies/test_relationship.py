@@ -1,6 +1,6 @@
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.replies.relationship import classify_relationship
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.replies.relationship import classify_relationship
 
 
 def _message(message_id, sender, recipients=None, sent_at="2024-06-01T00:00:00+00:00") -> ParsedMessage:

@@ -1,6 +1,6 @@
 import sqlite3
 
-from meridian.conversation.store import ConversationStore
+from ori.conversation.store import ConversationStore
 
 
 def test_add_turn_and_list_turns(tmp_path):

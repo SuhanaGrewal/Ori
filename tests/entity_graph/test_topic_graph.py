@@ -1,7 +1,7 @@
 import numpy as np
 
-from meridian.entity_graph.store import EntityGraphStore
-from meridian.entity_graph.topic_graph import link_item_to_topic
+from ori.entity_graph.store import EntityGraphStore
+from ori.entity_graph.topic_graph import link_item_to_topic
 
 
 class _FakeAnalyzer:

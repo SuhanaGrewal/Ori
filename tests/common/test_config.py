@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from meridian.common.config import config_for_user, ensure_dirs, load_config
+from ori.common.config import config_for_user, ensure_dirs, load_config
 
 
 def test_load_config_maps_env_vars_to_paths(tmp_path, monkeypatch):
@@ -8,9 +8,9 @@ def test_load_config_maps_env_vars_to_paths(tmp_path, monkeypatch):
     log_dir = tmp_path / "logs"
     notes_dir = tmp_path / "notes"
 
-    monkeypatch.setenv("MERIDIAN_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("MERIDIAN_LOG_DIR", str(log_dir))
-    monkeypatch.setenv("MERIDIAN_NOTES_FOLDER", str(notes_dir))
+    monkeypatch.setenv("ORI_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("ORI_LOG_DIR", str(log_dir))
+    monkeypatch.setenv("ORI_NOTES_FOLDER", str(notes_dir))
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "client-id")
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("LLM_API_KEY", "llm-key")
@@ -43,7 +43,7 @@ def test_load_config_defaults_llm_model(monkeypatch):
 
 
 def test_load_config_defaults_notes_folder_to_none(monkeypatch):
-    monkeypatch.delenv("MERIDIAN_NOTES_FOLDER", raising=False)
+    monkeypatch.delenv("ORI_NOTES_FOLDER", raising=False)
 
     config = load_config(load_env_file=False)
 
@@ -54,8 +54,8 @@ def test_ensure_dirs_creates_data_log_and_auth_dirs(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     log_dir = tmp_path / "logs"
 
-    monkeypatch.setenv("MERIDIAN_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("MERIDIAN_LOG_DIR", str(log_dir))
+    monkeypatch.setenv("ORI_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("ORI_LOG_DIR", str(log_dir))
 
     config = load_config(load_env_file=False)
     ensure_dirs(config)
@@ -72,8 +72,8 @@ def test_ensure_dirs_creates_data_log_and_auth_dirs(tmp_path, monkeypatch):
 
 
 def test_config_for_user_roots_data_dir_under_users_subdir(tmp_path, monkeypatch):
-    data_dir = tmp_path / "meridian-data"
-    monkeypatch.setenv("MERIDIAN_DATA_DIR", str(data_dir))
+    data_dir = tmp_path / "ori-data"
+    monkeypatch.setenv("ORI_DATA_DIR", str(data_dir))
     base = load_config(load_env_file=False)
 
     per_user = config_for_user(base, "user_abc123")
@@ -84,8 +84,8 @@ def test_config_for_user_roots_data_dir_under_users_subdir(tmp_path, monkeypatch
 
 
 def test_config_for_user_keeps_shared_app_level_fields(tmp_path, monkeypatch):
-    monkeypatch.setenv("MERIDIAN_DATA_DIR", str(tmp_path / "meridian-data"))
-    monkeypatch.setenv("MERIDIAN_LOG_DIR", str(tmp_path / "meridian-logs"))
+    monkeypatch.setenv("ORI_DATA_DIR", str(tmp_path / "ori-data"))
+    monkeypatch.setenv("ORI_LOG_DIR", str(tmp_path / "ori-logs"))
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "shared-client-id")
     monkeypatch.setenv("LLM_API_KEY", "shared-llm-key")
     base = load_config(load_env_file=False)
@@ -98,7 +98,7 @@ def test_config_for_user_keeps_shared_app_level_fields(tmp_path, monkeypatch):
 
 
 def test_config_for_user_different_users_get_isolated_dirs(tmp_path, monkeypatch):
-    monkeypatch.setenv("MERIDIAN_DATA_DIR", str(tmp_path / "meridian-data"))
+    monkeypatch.setenv("ORI_DATA_DIR", str(tmp_path / "ori-data"))
     base = load_config(load_env_file=False)
 
     alice = config_for_user(base, "user_alice")

@@ -2,7 +2,7 @@ import base64
 
 import pytest
 
-from meridian.ingestion.gmail.message_parser import MessageParseError, parse_message
+from ori.ingestion.gmail.message_parser import MessageParseError, parse_message
 
 
 def _b64(text: str) -> str:
@@ -185,7 +185,7 @@ def test_content_hash_changes_when_body_changes():
 
 
 def test_oversized_body_text_and_subject_are_truncated():
-    from meridian.security.validation import MAX_FIELD_CHARS
+    from ori.security.validation import MAX_FIELD_CHARS
 
     huge_body = "x" * (MAX_FIELD_CHARS + 1000)
     raw = {

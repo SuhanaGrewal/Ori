@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from meridian.query.prompt import (
+from ori.query.prompt import (
     SYSTEM_PROMPT,
     _relative_days_label,
     _source_label,
@@ -8,7 +8,7 @@ from meridian.query.prompt import (
     build_user_message,
     format_sources,
 )
-from meridian.query.retrieval import RetrievedChunk
+from ori.query.retrieval import RetrievedChunk
 
 
 def _chunk(source, metadata, source_item_id="item-1"):

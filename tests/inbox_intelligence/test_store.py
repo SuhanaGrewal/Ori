@@ -1,4 +1,4 @@
-from meridian.inbox_intelligence.store import InboxIntelligenceStore
+from ori.inbox_intelligence.store import InboxIntelligenceStore
 
 
 def test_is_message_scanned_false_before_marked(tmp_path):

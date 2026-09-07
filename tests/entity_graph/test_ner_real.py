@@ -1,9 +1,9 @@
 import pytest
 
-from meridian.entity_graph.ner import extract_entities
+from ori.entity_graph.ner import extract_entities
 
 try:
-    from meridian.entity_graph.ner import build_ner_engine
+    from ori.entity_graph.ner import build_ner_engine
 
     _nlp = build_ner_engine()
 except Exception as exc:  # pragma: no cover - depends on model download/network

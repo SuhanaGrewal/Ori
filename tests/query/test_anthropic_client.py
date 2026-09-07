@@ -2,8 +2,8 @@ import anthropic
 import httpx2
 import pytest
 
-from meridian.common.retry import RetryExhaustedError
-from meridian.query.anthropic_client import _is_retryable, build_client, call_claude
+from ori.common.retry import RetryExhaustedError
+from ori.query.anthropic_client import _is_retryable, build_client, call_claude
 
 
 def _status_error(cls, status_code: int):

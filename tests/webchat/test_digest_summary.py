@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 
-from meridian.entity_graph.store import EntityGraphStore
-from meridian.ingestion.calendar.store import CalendarStore
-from meridian.ingestion.docs.store import DocsStore
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.ingestion.local_files.store import NotesStore
-from meridian.webchat.digest_summary import build_digest_items
+from ori.entity_graph.store import EntityGraphStore
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.local_files.store import NotesStore
+from ori.webchat.digest_summary import build_digest_items
 
 _NOW = datetime(2024, 6, 10, tzinfo=timezone.utc)
 

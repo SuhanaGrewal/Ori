@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from meridian.notifications.calendar_watch import check_upcoming_events
-from meridian.notifications.store import NotificationStore
+from ori.notifications.calendar_watch import check_upcoming_events
+from ori.notifications.store import NotificationStore
 
 _NOW = datetime(2024, 6, 3, 9, 0, tzinfo=timezone.utc)
 

@@ -1,4 +1,4 @@
-from meridian.redaction.entities import (
+from ori.redaction.entities import (
     ALL_ENTITIES,
     HARD_SECRET_ENTITIES,
     PRESIDIO_ENTITIES,

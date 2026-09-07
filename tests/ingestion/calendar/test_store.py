@@ -1,5 +1,5 @@
-from meridian.ingestion.calendar.event_parser import ParsedEvent
-from meridian.ingestion.calendar.store import CalendarStore
+from ori.ingestion.calendar.event_parser import ParsedEvent
+from ori.ingestion.calendar.store import CalendarStore
 
 
 def _event(

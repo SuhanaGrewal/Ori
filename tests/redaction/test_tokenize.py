@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from meridian.redaction.custom_recognizers import Span
-from meridian.redaction.tokenize import (
+from ori.redaction.custom_recognizers import Span
+from ori.redaction.tokenize import (
     TokenizationResult,
     _resolve_overlaps,
     _spans_overlap,

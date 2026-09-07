@@ -1,17 +1,17 @@
 from datetime import datetime, timezone
 
-from meridian.entity_graph.store import EntityGraphStore
-from meridian.inbox_intelligence.store import InboxIntelligenceStore
-from meridian.ingestion.calendar.store import CalendarStore
-from meridian.ingestion.docs.store import DocsStore
-from meridian.ingestion.calendar.event_parser import ParsedEvent
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.ingestion.local_files.store import NotesStore
-from meridian.query.router import classify_intent, route
-from meridian.query.router_prompt import CLASSIFY_SYSTEM_PROMPT
-from meridian.reminders.store import ReminderStore
-from meridian.replies.store import DraftStore
+from ori.entity_graph.store import EntityGraphStore
+from ori.inbox_intelligence.store import InboxIntelligenceStore
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.calendar.event_parser import ParsedEvent
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.local_files.store import NotesStore
+from ori.query.router import classify_intent, route
+from ori.query.router_prompt import CLASSIFY_SYSTEM_PROMPT
+from ori.reminders.store import ReminderStore
+from ori.replies.store import DraftStore
 
 _ACCOUNT_EMAIL = "me@example.com"
 _NOW = datetime(2024, 6, 10, tzinfo=timezone.utc)

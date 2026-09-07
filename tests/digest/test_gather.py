@@ -1,15 +1,15 @@
 from datetime import datetime, timezone
 
-from meridian.digest.gather import gather_items, open_question_item
-from meridian.ingestion.calendar.event_parser import ParsedEvent
-from meridian.ingestion.calendar.store import CalendarStore
-from meridian.ingestion.docs.doc_parser import ParsedDoc
-from meridian.ingestion.docs.store import DocsStore
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.ingestion.local_files.note_parser import ParsedNote
-from meridian.ingestion.local_files.store import NotesStore
-from meridian.entity_graph.store import EntityGraphStore
+from ori.digest.gather import gather_items, open_question_item
+from ori.ingestion.calendar.event_parser import ParsedEvent
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.docs.doc_parser import ParsedDoc
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.local_files.note_parser import ParsedNote
+from ori.ingestion.local_files.store import NotesStore
+from ori.entity_graph.store import EntityGraphStore
 
 _SINCE = "2024-06-01T00:00:00Z"
 _NOW = "2024-06-10T00:00:00Z"

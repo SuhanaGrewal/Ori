@@ -1,7 +1,7 @@
-from meridian.inbox_intelligence.commitments import _looks_like_boilerplate_policy, scan_for_commitments
-from meridian.inbox_intelligence.store import InboxIntelligenceStore
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
+from ori.inbox_intelligence.commitments import _looks_like_boilerplate_policy, scan_for_commitments
+from ori.inbox_intelligence.store import InboxIntelligenceStore
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
 
 _ACCOUNT_EMAIL = "me@example.com"
 

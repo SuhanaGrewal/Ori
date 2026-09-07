@@ -1,5 +1,5 @@
-from meridian.indexing.chunking import PARENT_CHUNK_CHARS
-from meridian.indexing.parent_child import build_chunks
+from ori.indexing.chunking import PARENT_CHUNK_CHARS
+from ori.indexing.parent_child import build_chunks
 
 
 def test_short_text_is_its_own_parent():

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from meridian.query.date_range import chunk_in_range, extract_date_range, is_forward_looking_range, parse_stored_date
+from ori.query.date_range import chunk_in_range, extract_date_range, is_forward_looking_range, parse_stored_date
 
 # a fixed wednesday for deterministic tests
 _NOW = datetime(2024, 6, 12, 15, 30, tzinfo=timezone.utc)  # 2024-06-12 is a Wednesday

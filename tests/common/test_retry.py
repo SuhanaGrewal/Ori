@@ -1,6 +1,6 @@
 import pytest
 
-from meridian.common.retry import RetryExhaustedError, retry_with_backoff
+from ori.common.retry import RetryExhaustedError, retry_with_backoff
 
 
 class TransientError(Exception):
@@ -8,7 +8,7 @@ class TransientError(Exception):
 
 
 def test_retry_succeeds_after_transient_failures(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda _: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda _: None)
 
     calls = {"count": 0}
 
@@ -25,7 +25,7 @@ def test_retry_succeeds_after_transient_failures(monkeypatch):
 
 
 def test_retry_gives_up_after_max_attempts(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda _: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda _: None)
 
     calls = {"count": 0}
 
@@ -40,7 +40,7 @@ def test_retry_gives_up_after_max_attempts(monkeypatch):
 
 
 def test_retry_does_not_catch_unrelated_exceptions(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda _: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda _: None)
 
     def raises_value_error():
         raise ValueError("not retryable")

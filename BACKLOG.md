@@ -1,6 +1,6 @@
 # Backlog
 
-Running list of known gaps and improvements found while testing Meridian
+Running list of known gaps and improvements found while testing Ori
 against real data, beyond the 12 core phases in `CLAUDE.md`. Add to this as
 we find more. Nothing here is scheduled until explicitly picked up.
 
@@ -17,7 +17,7 @@ already uses for the same data.
 
 ### 11 (remaining half). Actually sending an approved draft — NEEDS EXPLICIT GO-AHEAD
 The drafting half is built (see Fixed, below) - what's left is a send
-path. Requires giving Meridian a brand-new Google OAuth scope
+path. Requires giving Ori a brand-new Google OAuth scope
 (`gmail.send` or `gmail.compose`) on top of the 4 read-only scopes it has
 today. Every design principle in `CLAUDE.md` and the README so far is
 built around "read-only, nothing ever sends or executes on its own" -
@@ -91,7 +91,7 @@ someone else - only the former needs the user's own action), then
 `detected_at DESC` (most recently found first). Verified against real
 data: the two commitments made by the user now correctly appear first,
 followed by the two made by others - confirmed both directly against the
-store and through `python -m meridian.query "what do I owe people, any
+store and through `python -m ori.query "what do I owe people, any
 open commitments"`.
 
 ### 23. "Nothing found" abstain messages didn't say what wasn't found
@@ -130,7 +130,7 @@ Also tested this loop, working well as-is (no changes needed):
 stale-thread lookup (`any threads waiting on my reply` correctly
 surfaced the real Billy Wardrop/laptop thread with a brief, cited
 summary), open-commitments lookup, and reminder intake (correctly
-disclosed "nothing is booked automatically" - Meridian has no
+disclosed "nothing is booked automatically" - Ori has no
 calendar-write capability, by design, so a request to actually book
 something is a real, honest limit, not a bug).
 
@@ -154,7 +154,7 @@ skipped entirely (no LLM call) when the thread has no history yet.
 `query/answer.py::ask()` gained optional `conversation_id`/
 `conversation_store` params (default `None`, same pattern as every
 other optional store in this project) - wired into
-`python -m meridian.query "<text>" --thread <name>`; omit `--thread` for
+`python -m ori.query "<text>" --thread <name>`; omit `--thread` for
 the original one-shot, stateless behavior.
 
 Scoped deliberately narrow for now: only the GENERAL/fact-question path
@@ -166,7 +166,7 @@ earliest context rather than the prompt growing without bound. An
 abstained turn isn't recorded into the thread (only a successful answer
 is), so a follow-up to an abstain has nothing to reference.
 
-Also has its own CLI (`python -m meridian.conversation list/clear
+Also has its own CLI (`python -m ori.conversation list/clear
 <thread>`) as a direct escape hatch.
 
 Verified against real data end to end: asked "any upcoming flight
@@ -233,7 +233,7 @@ covering every source, not just Gmail: `scripts/sync_all.sh` (renamed
 from `sync_gmail.sh`) runs Gmail, Calendar, and Docs ingestion
 unconditionally every 10 minutes, and local-files ingestion
 conditionally (skipped gracefully, not erroring the whole job, when
-`MERIDIAN_NOTES_FOLDER` isn't set in `.env`), then reindexes everything
+`ORI_NOTES_FOLDER` isn't set in `.env`), then reindexes everything
 incrementally. `DIGEST_DAYS` in `.env` restricts which days the digest
 actually runs (comma-separated 3-letter day names, e.g. `mon,wed,fri`;
 empty = every day) - checked by `scripts/nightly_digest.sh` itself, not
@@ -325,7 +325,7 @@ first indexed chunk as its representative text/embedding.
 
 Costs a real LLM call per not-yet-linked item, so - unlike the rest of
 `entity_graph`'s free default run - this is opt-in via
-`python -m meridian.entity_graph --link-topics`. Verified against real
+`python -m ori.entity_graph --link-topics`. Verified against real
 data: a local note about an upcoming Lisbon trip was correctly labeled
 "Lisbon October trip planning" and linked; a re-run correctly skipped it
 as unchanged with no further LLM call.
@@ -390,7 +390,7 @@ path anywhere in this project (read-only OAuth, per CLAUDE.md), so
 "propose, don't book" isn't just a policy choice here - there's structurally
 nothing to book with; the reminder's job ends at proposing a slot.
 
-Also has its own CLI (`python -m meridian.reminders add/list/dismiss`) as
+Also has its own CLI (`python -m ori.reminders add/list/dismiss`) as
 a direct escape hatch, mirroring `inbox_intelligence`'s CLI-alongside-router
 pattern.
 
@@ -403,9 +403,9 @@ correctly matched and dismissed it via the router's RESOLVE path.
 Requested: proactive alerts (e.g. "meeting in 15 minutes"), not just
 seeing upcoming events in a digest. Scoping this required picking between
 a genuinely long-running background process and a very frequent scheduled
-check - went with the latter: a one-shot `python -m meridian.notifications
+check - went with the latter: a one-shot `python -m ori.notifications
 check` invoked every minute via a new launchd job
-(`com.meridian.calendarnotify`, `StartInterval` 60), consistent with this
+(`com.ori.calendarnotify`, `StartInterval` 60), consistent with this
 project's existing architecture where every phase is a one-shot CLI
 scheduled externally, not an in-process daemon. A genuine daemon would
 need its own process supervision, crash-restart, and log-rotation
@@ -427,7 +427,7 @@ doesn't mean anything for them).
 `scripts/install_launchd.sh`/`uninstall_launchd.sh` updated to install/
 remove the new job alongside auto-sync and the nightly digest. Verified
 against real data: `send_native_notification()` fired a genuine macOS
-notification banner; `python -m meridian.notifications check` ran
+notification banner; `python -m ori.notifications check` ran
 correctly against the real calendar (0 events in the next 30 days, so 0
 notifications - confirmed correct by checking the raw calendar data
 directly, not just trusting the "0" output).
@@ -463,7 +463,7 @@ New `replies/` module:
   (`find_stale_threads()` - the same set #17's RESOLVE already matches
   against), reusing the same "match request to one candidate via an LLM
   call, ask for clarification rather than guess wrong" approach.
-- Own CLI (`python -m meridian.replies draft/list/show/edit/approve/reject`)
+- Own CLI (`python -m ori.replies draft/list/show/edit/approve/reject`)
   as a direct escape hatch, same pattern as reminders/inbox_intelligence.
 
 `DraftStore.approve()` only flips a status flag - there is no send path
@@ -482,7 +482,7 @@ Requested: instead of separate CLI subcommands per capability, a single
 text message should map to whichever backend actually answers it - "any
 thread needs my approval" should surface stale threads, without the user
 needing to know `stale-threads` exists as a command. `python -m
-meridian.query` now runs every question through `query/router.py` first
+ori.query` now runs every question through `query/router.py` first
 (one cheap Claude call to classify into stale_threads / commitments /
 resolve / general) before falling through to the unchanged `ask()`
 pipeline for genuine fact questions.
@@ -528,7 +528,7 @@ just the ads. Confirmed with the user this is the intended behavior
 (strict Primary-tab match, not "ads only") before shipping it.
 
 ### 14. Soft-commitment tracking ("I'll send this by Friday" → trackable follow-up)
-Second piece of Inbox Intelligence. `python -m meridian.inbox_intelligence
+Second piece of Inbox Intelligence. `python -m ori.inbox_intelligence
 scan-commitments` (costs real LLM usage, bounded by `--limit`) detects a
 promise the SENDER of an email makes about their own future action, and
 converts it into a trackable follow-up; `commitments` lists open ones
@@ -567,7 +567,7 @@ leaving those as "no due date" rather than guessing.
 
 ### 13. Inbox Intelligence: stale-thread detection ("your move")
 First piece of Inbox Intelligence (the "really good RAG + reminders" track,
-separate from the digest). `python -m meridian.inbox_intelligence
+separate from the digest). `python -m ori.inbox_intelligence
 stale-threads` lists Gmail threads where the last message wasn't from the
 account owner and it's been quiet for 3+ days (`--min-days` to change).
 Needed the account's own email address, which nothing captured before -

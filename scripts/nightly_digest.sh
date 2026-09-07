@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wrapper invoked once daily by the com.meridian.nightlydigest launchd job.
+# Wrapper invoked once daily by the com.ori.nightlydigest launchd job.
 # The plist fires every day at a fixed hour; this script is what actually
 # decides whether today is a day the user wants a digest on, via
 # DIGEST_DAYS in .env (comma-separated 3-letter day names, e.g.
@@ -25,4 +25,4 @@ if [ -n "$DIGEST_DAYS" ]; then
     esac
 fi
 
-"$PROJECT_DIR/.venv/bin/python" -m meridian.digest run
+"$PROJECT_DIR/.venv/bin/python" -m ori.digest run

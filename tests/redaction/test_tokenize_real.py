@@ -1,9 +1,9 @@
 import pytest
 
-from meridian.redaction.tokenize import tokenize_for_external_call, untokenize
+from ori.redaction.tokenize import tokenize_for_external_call, untokenize
 
 try:
-    from meridian.redaction.analyzer import build_analyzer_engine
+    from ori.redaction.analyzer import build_analyzer_engine
 
     _analyzer = build_analyzer_engine()
 except Exception as exc:  # pragma: no cover - depends on local model install

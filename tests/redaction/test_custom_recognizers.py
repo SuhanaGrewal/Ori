@@ -1,4 +1,4 @@
-from meridian.redaction.custom_recognizers import find_address_spans, find_secret_spans
+from ori.redaction.custom_recognizers import find_address_spans, find_secret_spans
 
 
 def test_finds_openai_style_key():

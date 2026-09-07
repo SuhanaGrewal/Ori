@@ -1,4 +1,4 @@
-from meridian.reminders.store import ReminderStore
+from ori.reminders.store import ReminderStore
 
 
 def test_add_reminder_and_get_reminder(tmp_path):

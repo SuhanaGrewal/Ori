@@ -1,4 +1,4 @@
-from meridian.query.reranker import rerank, sigmoid
+from ori.query.reranker import rerank, sigmoid
 
 
 class _FakeReranker:
