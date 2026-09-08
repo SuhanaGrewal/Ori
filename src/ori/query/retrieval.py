@@ -154,27 +154,49 @@ def _break_near_ties_by_recency(
     with no close competitors, or one where no two candidates in the tied
     group have parseable dates, is left exactly as reranked.
 
-    Returns whether a swap actually happened alongside the (possibly
-    reordered) list - retrieve() uses that to know a real, resolved near-
-    tie was found here, as opposed to one genuinely low-confidence
-    candidate with nothing else close to it."""
+    Returns the (possibly reordered) list alongside `is_confident_tie` -
+    retrieve() uses that second value to know whether this was a real,
+    discriminated-from-the-rest near-tie (safe to trust as its own
+    confidence signal), as opposed to one genuinely low-confidence
+    candidate with nothing else close to it, OR the degenerate case
+    below. The reorder itself still happens whenever dates can resolve
+    it, regardless of `is_confident_tie` - recency is a harmless,
+    reasonable tiebreak among near-equal scores either way; it's only
+    *trusting that tie enough to skip abstaining* that needs the
+    stricter check.
+
+    Found via the eval harness (golden abstain-only questions - real
+    docs, but no matching content for the question at all): whether the
+    tied group is a PROPER subset of `ranked`, not the whole thing,
+    matters as much as the epsilon check itself for that second value.
+    When every single candidate ties (a genuinely irrelevant question
+    scores everything identically low), that's not evidence the
+    reranker found several plausible near-duplicates - it's evidence it
+    couldn't discriminate AT ALL, almost always because nothing is
+    relevant. Trusting a tie as a confidence signal only makes sense
+    when the reranker clearly COULD tell some candidates apart
+    (something else in `ranked` scored clearly worse) but couldn't
+    separate a specific cluster from each other - exactly the real
+    receipts case this was built for, where 3 near-duplicates tied while
+    everything else in the pool scored well below them."""
     if len(ranked) < 2:
         return ranked, False
 
     top_score = ranked[0][1]
     tied = [item for item in ranked if abs(item[1] - top_score) <= _RECENCY_TIEBREAK_EPSILON]
+    is_confident_tie = 2 <= len(tied) < len(ranked)
     if len(tied) < 2:
         return ranked, False
 
     dated = [(item, date) for item in tied if (date := _row_date(item[0])) is not None]
     if len(dated) < 2:
-        return ranked, False
+        return ranked, is_confident_tie
 
     most_recent, _ = max(dated, key=lambda pair: pair[1])
     if most_recent is ranked[0]:
-        return ranked, False
+        return ranked, is_confident_tie
 
-    return [most_recent, *(item for item in ranked if item is not most_recent)], True
+    return [most_recent, *(item for item in ranked if item is not most_recent)], is_confident_tie
 
 
 def retrieve(
@@ -203,8 +225,7 @@ def retrieve(
     size on a real, multi-thousand-chunk index - a mechanical fix for "not
     enough candidates considered," not a fix for a true vocabulary gap
     (a document sharing no words/concepts with the question at all), which
-    needs actual measurement (an eval harness, not built yet) to safely
-    address."""
+    needs actual measurement (see tests/eval/) to safely address."""
     fused = hybrid_search(store, question, question_embedding, k=initial_pool_k, source=source)
     if not fused:
         return RetrievalResult(chunks=[], confidence=0.0, abstained=True, abstain_reason="no_candidates")
@@ -225,12 +246,15 @@ def retrieve(
     chunks = [row_to_chunk(row, score) for row, score in ranked]
 
     top_confidence = chunks[0].confidence if chunks else 0.0
-    # a resolved recency tiebreak is its own confidence signal: it only
-    # fires when 2+ candidates independently scored close enough to the
-    # top to be noise AND both carry a real date - i.e. the reranker
-    # already judged them all plausibly relevant, and recency picked
-    # which one. Abstaining anyway (because the *chosen* one's own raw
-    # score happens to sit below the threshold) would hand the decision
+    # a resolved, CONFIDENT recency tiebreak is its own confidence
+    # signal: it only fires when 2+ candidates score close enough to the
+    # top to be noise, carry a real date, AND - critically, per the eval
+    # harness catching the degenerate case - are a proper subset of the
+    # ranked candidates, not literally all of them (which just means the
+    # reranker found nothing to discriminate at all, not several
+    # plausible near-duplicates). Abstaining anyway in the genuine case
+    # (because the *chosen* one's own raw score happens to sit below the
+    # threshold) would hand the decision
     # to ask()'s downstream per-candidate LLM relevance tiebreak instead -
     # a real, non-deterministic Claude call that iterates the same
     # candidates in whatever order they arrive and can reject the one

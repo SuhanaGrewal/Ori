@@ -1,6 +1,8 @@
 from tests.eval.scoring import (
     extract_citation_indices,
+    hit_rate_at_k,
     mean,
+    ndcg_at_k,
     precision_at_k,
     recall_at_k,
     reciprocal_rank,
@@ -77,3 +79,47 @@ def test_extract_citation_indices_multiple_and_repeated():
 
 def test_extract_citation_indices_ignores_non_numeric_brackets():
     assert extract_citation_indices("see [note] and [3].") == [3]
+
+
+def test_hit_rate_at_k_any_relevant_present():
+    assert hit_rate_at_k(["z", "a", "y"], {"a", "b"}, 3) == 1.0
+
+
+def test_hit_rate_at_k_no_relevant_present():
+    assert hit_rate_at_k(["x", "y"], {"a"}, 2) == 0.0
+
+
+def test_hit_rate_at_k_relevant_present_but_outside_cutoff():
+    assert hit_rate_at_k(["z", "a"], {"a"}, 1) == 0.0
+
+
+def test_hit_rate_at_k_no_relevant_docs_at_all():
+    assert hit_rate_at_k(["a", "b"], set(), 2) == 0.0
+
+
+def test_ndcg_at_k_perfect_ordering_scores_one():
+    # both relevant docs ranked first - the best possible ordering, so
+    # actual DCG should exactly equal ideal DCG
+    assert ndcg_at_k(["a", "b", "z"], {"a", "b"}, 3) == 1.0
+
+
+def test_ndcg_at_k_relevant_doc_ranked_lower_scores_less_than_one():
+    # single relevant doc at rank 2 instead of rank 1 - same recall as a
+    # perfect ordering would give, but NDCG penalizes the worse rank
+    score = ndcg_at_k(["z", "a"], {"a"}, 2)
+    assert 0.0 < score < 1.0
+
+
+def test_ndcg_at_k_no_relevant_found_scores_zero():
+    assert ndcg_at_k(["x", "y"], {"a"}, 2) == 0.0
+
+
+def test_ndcg_at_k_no_relevant_docs_at_all():
+    assert ndcg_at_k(["a", "b"], set(), 2) == 0.0
+
+
+def test_ndcg_at_k_order_independent_when_all_relevant_found_within_k():
+    # a case NDCG and recall would disagree on if graded relevance were
+    # in play, but with binary relevance and both hits inside the same
+    # cutoff, order between two relevant docs doesn't change the score
+    assert ndcg_at_k(["a", "b"], {"a", "b"}, 2) == ndcg_at_k(["b", "a"], {"a", "b"}, 2)

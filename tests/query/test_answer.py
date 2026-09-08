@@ -397,8 +397,25 @@ def test_ask_recency_tiebreak_skips_the_llm_relevance_cascade_entirely(tmp_path)
         [ChunkRecord(text="receipt most recent", parent_text="receipt most recent", position=0, is_own_parent=True)],
         [query_vec], {"subject": "Receipt", "sent_at": "2024-09-01T00:00:00Z"},
     )
+    # two other pool candidates scored clearly below the receipts (well
+    # outside the tiebreak epsilon) - the reranker demonstrably CAN
+    # discriminate, it just can't separate these three from each other;
+    # without this, all three ranked candidates would tie with nothing
+    # else to compare against, which retrieval.py's own eval-harness-
+    # driven guard now treats as "found nothing," not a confident tie.
+    store.upsert_item_chunks(
+        "gmail", "unrelated-newsletter",
+        [ChunkRecord(text="unrelated newsletter", parent_text="unrelated newsletter", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Newsletter", "sent_at": "2024-03-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "unrelated-promo",
+        [ChunkRecord(text="unrelated promo", parent_text="unrelated promo", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Promo", "sent_at": "2024-02-01T00:00:00Z"},
+    )
     reranker = _FakeReranker({
         "receipt oldest": -0.85, "receipt middle": -0.94, "receipt most recent": -1.32,
+        "unrelated newsletter": -5.0, "unrelated promo": -5.5,
     })
     client = _FakeMultiReplyClient(["The most recent charge was in September [1]."])
 

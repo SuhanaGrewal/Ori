@@ -193,8 +193,25 @@ def test_retrieve_recency_tiebreak_compares_whole_near_tied_group_not_just_top_t
         [ChunkRecord(text="receipt most recent", parent_text="receipt most recent", position=0, is_own_parent=True)],
         [query_vec], {"subject": "Receipt", "sent_at": "2024-09-01T00:00:00Z"},
     )
+    # two other real pool candidates the reranker clearly scores far
+    # below the receipts (well outside the tiebreak epsilon) - matches
+    # the real production shape (a wide corpus, only a few genuinely
+    # close candidates) rather than a store containing nothing else at
+    # all, which the tiebreak's own "did the reranker actually
+    # discriminate anything" guard (see test below) treats differently.
+    store.upsert_item_chunks(
+        "gmail", "unrelated-newsletter",
+        [ChunkRecord(text="unrelated newsletter", parent_text="unrelated newsletter", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Newsletter", "sent_at": "2024-03-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "unrelated-promo",
+        [ChunkRecord(text="unrelated promo", parent_text="unrelated promo", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Promo", "sent_at": "2024-02-01T00:00:00Z"},
+    )
     reranker = _FakeReranker({
         "receipt oldest": -0.85, "receipt middle": -0.94, "receipt most recent": -1.32,
+        "unrelated newsletter": -5.0, "unrelated promo": -5.5,
     })
 
     result = retrieve(store, "the charge", query_vec, reranker=reranker)
@@ -210,6 +227,43 @@ def test_retrieve_recency_tiebreak_compares_whole_near_tied_group_not_just_top_t
     # A real, resolved near-tie is its own confidence signal and should
     # not need to survive a second, less predictable check.
     assert result.abstained is False
+
+
+def test_retrieve_recency_tiebreak_does_not_bypass_abstain_when_nothing_is_relevant(tmp_path):
+    # real bug found by the eval harness's golden abstain-only questions:
+    # a genuinely irrelevant question scores every single candidate in
+    # the pool near-identically low (a real cross-encoder does this too
+    # when nothing matches, not just this test's fake one) - the WHOLE
+    # top-k ties, which the tiebreak's epsilon check alone can't tell
+    # apart from "several genuinely plausible near-duplicates tied while
+    # clearly-worse candidates sat below them" (the real receipts case).
+    # Trusting a tie that swallows the entire ranked list as a confidence
+    # signal wrongly turned a real "nothing found" into a confident wrong
+    # answer - this must still abstain.
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "doc-a",
+        [ChunkRecord(text="doc a", parent_text="doc a", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "A", "sent_at": "2024-01-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "doc-b",
+        [ChunkRecord(text="doc b", parent_text="doc b", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "B", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "doc-c",
+        [ChunkRecord(text="doc c", parent_text="doc c", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "C", "sent_at": "2024-09-01T00:00:00Z"},
+    )
+    # every candidate scores identically - the reranker found nothing to
+    # discriminate at all, not several plausible near-duplicates
+    reranker = _FakeReranker({"doc a": -8.0, "doc b": -8.0, "doc c": -8.0})
+
+    result = retrieve(store, "something entirely unrelated", query_vec, reranker=reranker)
+
+    assert result.abstained is True
 
 
 def test_retrieve_does_not_override_a_clear_score_gap(tmp_path):
