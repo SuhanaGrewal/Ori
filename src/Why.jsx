@@ -11,8 +11,6 @@ const FONT_IMPORT = `@import url('https://fonts.cdnfonts.com/css/cmu-serif'); @i
 const INK = "#1B1B18";
 const INK_SOFT = "#6E6C62";
 
-const PALE_TEAL = "#7FAEB8";
-
 // per-card teal, stepping lighter -> darker down the stack
 const TEALS = ["#8FBFC9", "#6FA3AF", "#527F8A"];
 
@@ -62,7 +60,7 @@ const STATS = [
       </>
     ),
     line: "The average knowledge worker spends 209 hours a year redoing work that was already done once.",
-    source: "~ Asana, Anatomy of Work Index, 2023",
+    source: "~ Anatomy of Work Index, 2023",
   },
   {
     id: "handoff",
@@ -306,7 +304,7 @@ export default function Why() {
     <>
       <style>{FONT_IMPORT}</style>
 
-      <section ref={sectionRef} style={{ position: "relative", height: "240vh", background: "transparent" }}>
+      <section id="why" ref={sectionRef} style={{ position: "relative", height: "240vh", background: "transparent" }}>
         <div style={{ position: "sticky", top: 0, height: "100vh", overflow: "hidden" }}>
           {/* the problem quote lives at the top of the pinned scene — visible
               the whole time the cards lift, then fades once the last card has

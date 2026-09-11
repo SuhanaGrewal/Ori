@@ -8,7 +8,6 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Playf
 
 const INK = "#1B1B18";
 const INK_SOFT = "#6E6C62";
-const LINE = "#E7E3D6";
 const ACCENT = "#5C8A94";
 const ACCENT_SOFT = "#D9E7EA";
 const BG = "#FFFFFF";

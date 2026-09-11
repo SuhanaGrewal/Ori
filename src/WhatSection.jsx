@@ -5,6 +5,10 @@ import slackIcon from "./assets/slack-icon.svg";
 import gmailIcon from "./assets/gmail-icon.svg";
 import sheetsIcon from "./assets/sheets-icon.svg";
 import craneAccent from "./assets/crane-accent.png";
+import formsIcon from "./assets/forms-icon.webp";
+import notionIcon from "./assets/notion-icon.svg";
+import excelIcon from "./assets/excel-icon.webp";
+import outlookIcon from "./assets/outlook-icon.webp";
 
 const BODY = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
 const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
@@ -15,6 +19,7 @@ const ACCENT = "#5C8A94";
 const ACCENT_SOFT = "#D9E7EA";
 const INK = "#1B1B18";
 const INK_SOFT = "#6E6C62";
+const RETIRE = "#A9776D";
 
 // shared paper material — warm off-white, fine matte grain
 const PAPER = "#FBF9F4";
@@ -22,8 +27,6 @@ const GRAIN =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.16'/%3E%3C/svg%3E\")";
 const SHEET_EDGE = "1px solid rgba(27,27,24,0.08)";
 const SHEET_SHADOW = "0 3px 6px -2px rgba(27,27,24,0.10), 0 32px 64px -28px rgba(27,27,24,0.22)";
-const CARD_SHADOW_REST = "0 2px 3px -1px rgba(27,27,24,0.16), 0 10px 18px -12px rgba(27,27,24,0.22)";
-const CARD_SHADOW_HOVER = "0 6px 10px -3px rgba(27,27,24,0.12), 0 22px 34px -16px rgba(27,27,24,0.26)";
 
 const SIZE = 560;
 const HALF = SIZE / 2;
@@ -73,39 +76,38 @@ function CrossCreases() {
 
 /* ---------------------------------------------------------------------------
    The corner tour: dive into the top-left quadrant, then pan corner to
-   corner — top-right, bottom-right, bottom-left — pausing at each.
+   corner — top-right, bottom-right, bottom-left — pausing at each, then
+   pull all the way back out to reveal the whole assembled sheet.
 --------------------------------------------------------------------------- */
 
 // quadrant focal centres (local px)
 const CORNERS = [
   { x: 140, y: 140 }, // 01 top-left     — Observes
-  { x: 420, y: 140 }, // 02 top-right
-  { x: 420, y: 420 }, // 03 bottom-right
-  { x: 140, y: 420 }, // 04 bottom-left
+  { x: 420, y: 140 }, // 02 top-right    — Audits
+  { x: 420, y: 420 }, // 03 bottom-right — Builds
+  { x: 140, y: 420 }, // 04 bottom-left  — Maintains
 ];
 
 const tzx = (c) => ZOOM * (HALF - c.x);
 const tzy = (c) => ZOOM * (HALF - c.y);
 
 // dive into TL, pan corner to corner (TR · BR · BL), then pull all the way
-// back out to the whole sheet for the Maintains finale
+// back out to the whole sheet as a quiet closing beat
 const CAM_KEYS = [0.02, 0.1, 0.2, 0.27, 0.37, 0.44, 0.54, 0.61, 0.71, 0.8];
 const CAM_TX = [0, tzx(CORNERS[0]), tzx(CORNERS[0]), tzx(CORNERS[1]), tzx(CORNERS[1]), tzx(CORNERS[2]), tzx(CORNERS[2]), tzx(CORNERS[3]), tzx(CORNERS[3]), 0];
 const CAM_TY = [0, tzy(CORNERS[0]), tzy(CORNERS[0]), tzy(CORNERS[1]), tzy(CORNERS[1]), tzy(CORNERS[2]), tzy(CORNERS[2]), tzy(CORNERS[3]), tzy(CORNERS[3]), 0];
 const CAM_SCALE = [1, ZOOM, ZOOM, ZOOM, ZOOM, ZOOM, ZOOM, ZOOM, ZOOM, 1];
 
 // each corner stage fades in as its corner settles, out as the camera leaves —
-// Builds fades out fully before the camera pulls back for Maintains
+// Maintains fades out fully before the camera pulls back for the finale
 const STAGE_FADES = [
   [0.09, 0.14, 0.2, 0.25],
   [0.27, 0.32, 0.37, 0.42],
   [0.44, 0.49, 0.54, 0.59],
   [0.61, 0.66, 0.7, 0.74],
 ];
-// Maintains lives in the centre of the whole sheet — it only appears once the
-// zoom-out has fully settled (the spring needs room past the 0.8 keyframe),
-// so the sheet is back to full size and empty first
-const MAINTAINS_FADE = [0.9, 0.97];
+
+const SCENE_VH = 560;
 
 // where each stage's block sits on the sheet (local px, top-left of block)
 const STAGE_POS = [
@@ -260,7 +262,7 @@ function ObservesContent() {
   return (
     <div style={{ width: 560 }}>
       <p style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.22em", color: INK_SOFT, margin: "0 0 14px" }}>
-        01 / 05
+        01 / 04
       </p>
 
       <h3 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 64, color: INK, margin: "0 0 26px", lineHeight: 1 }}>
@@ -372,23 +374,28 @@ function PanelHeader({ label }) {
   );
 }
 
-// the findings ledger — matches tick in one by one, then the pattern is stamped
+// the findings ledger — matches tick in one by one, the pattern is stamped,
+// then the consistency checks run and the priced verdict lands. Audits now
+// carries what used to be the separate Detects stage.
 const FINDINGS = [
   { text: "Report export · Priya", teal: false },
   { text: "Report export · Sam", teal: false },
   { text: "Report export · Jordan", teal: false },
-  { text: "Same task · 3 people · weekly", teal: true },
+  { text: "Same task · 3 people · weekly", teal: false },
+  { text: "Recurred · 3 weeks running", teal: false },
+  { text: "Low variance · no edge cases", teal: false },
+  { text: "6.2 hrs/wk lost → automate", teal: true },
 ];
 
 function AuditFindings() {
   const [step, setStep] = useState(0);
   useEffect(() => {
-    const iv = setInterval(() => setStep((s) => (s + 1) % (FINDINGS.length + 2)), 1400);
+    const iv = setInterval(() => setStep((s) => (s + 1) % (FINDINGS.length + 2)), 1200);
     return () => clearInterval(iv);
   }, []);
 
   return (
-    <div style={{ ...PANEL, width: 214 }}>
+    <div style={{ ...PANEL, width: 236 }}>
       <PanelHeader label="Auditing" />
 
       {FINDINGS.map((f, i) => {
@@ -425,7 +432,7 @@ function AuditFindings() {
 
 function AuditsVisual() {
   return (
-    <div style={{ display: "flex", gap: 28, width: 560, height: 210, alignItems: "flex-start" }}>
+    <div style={{ display: "flex", gap: 24, width: 560, alignItems: "center" }}>
       <AuditLogStream />
       <AuditFindings />
     </div>
@@ -436,7 +443,7 @@ function AuditsContent() {
   return (
     <div style={{ width: 560 }}>
       <p style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.22em", color: INK_SOFT, margin: "0 0 14px" }}>
-        02 / 05
+        02 / 04
       </p>
 
       <h3 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 64, color: INK, margin: "0 0 26px", lineHeight: 1 }}>
@@ -446,108 +453,146 @@ function AuditsContent() {
       <AuditsVisual />
 
       <p style={{ fontFamily: BODY, fontSize: 16.5, color: INK_SOFT, lineHeight: 1.6, margin: "26px 0 0", maxWidth: 560 }}>
-        Ori lines that activity up day after day, watching for patterns or repetitions in tasks — even
-        across different people.
+        Ori compares activity across people and time, flagging tasks that repeat the same way
+        often enough to trust and automate.
       </p>
     </div>
   );
 }
 
-/* ------------------------------- Detects --------------------------------- */
+/* -------------------------------- Builds --------------------------------- */
 
-// a value that counts up, holds, then resets and climbs again — always alive
-// whenever the corner is on screen, no scroll trigger needed
-function useLoopCount(target, upMs = 1500, holdMs = 3200) {
-  const [v, setV] = useState(0);
-  useEffect(() => {
-    let raf;
-    let phase = "up";
-    let phaseStart = null;
-    const tick = (t) => {
-      if (phaseStart === null) phaseStart = t;
-      const el = t - phaseStart;
-      if (phase === "up") {
-        const p = Math.min(el / upMs, 1);
-        setV(target * (1 - Math.pow(1 - p, 3)));
-        if (p >= 1) {
-          phase = "hold";
-          phaseStart = t;
-        }
-      } else if (el >= holdMs) {
-        phase = "up";
-        phaseStart = t;
-        setV(0);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, upMs, holdMs]);
-  return v;
+// the drop shadow every floating logo shares — same treatment as the tool
+// marks in the Observes diagram, so Builds reads as the same material
+const LOGO_SHADOW = "drop-shadow(0 2px 5px rgba(27,27,24,0.16))";
+
+// one stop on the pipeline — a bare floating logo, no tile, no fill
+function TimelineIcon({ src, alt, size = 34, visible }) {
+  return (
+    <motion.div
+      initial={false}
+      animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : 6 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      style={{ width: size, height: size, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+    >
+      <img src={src} alt={alt} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", filter: LOGO_SHADOW }} />
+    </motion.div>
+  );
 }
 
-// the consistency checks Ori runs before it trusts a pattern — ticking in
-// one by one, ending in the verdict that clears it for automation
-const VERIFY_STEPS = [
-  { text: "Recurred · 3 weeks running", teal: false },
-  { text: "Same steps every time", teal: false },
-  { text: "Low variance · no edge cases", teal: false },
-  { text: "Consistent → safe to automate", teal: true },
+// the line between two stops, with the step it performs written beneath it —
+// inset from both icons so it reads as a connector, not a touching edge; the
+// line draws in first, then the caption fades in further below it
+function TimelineStep({ width, drawn, caption }) {
+  const inset = 14;
+  return (
+    <div style={{ width, flexShrink: 0, paddingTop: 16 }}>
+      <div style={{ position: "relative", height: 2 }}>
+        <div style={{ position: "absolute", top: 0, left: inset, right: inset, height: 2, background: "rgba(27,27,24,0.12)" }} />
+        <motion.div
+          initial={false}
+          animate={{ scaleX: drawn ? 1 : 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          style={{ position: "absolute", top: 0, left: inset, right: inset, height: 2, background: ACCENT, transformOrigin: "left center" }}
+        />
+      </div>
+      <motion.p
+        initial={false}
+        animate={{ opacity: drawn ? 1 : 0 }}
+        transition={{ duration: 0.3, ease: "easeOut", delay: drawn ? 0.25 : 0 }}
+        style={{
+          fontFamily: MONO,
+          fontSize: 11,
+          lineHeight: 1.5,
+          color: INK_SOFT,
+          textAlign: "center",
+          margin: "20px 6px 0",
+        }}
+      >
+        {caption}
+      </motion.p>
+    </div>
+  );
+}
+
+// three different automations Ori has built, cycled through — same
+// mechanic, different tools, different work. `trigger` doubles as the first
+// line of the code panel above the chain; the three captions become its body
+const BUILD_CHAINS = [
+  {
+    trigger: "on formSubmit():",
+    nodes: [
+      { src: formsIcon, alt: "Google Forms" },
+      { src: sheetsIcon, alt: "Google Sheets" },
+      { src: notionIcon, alt: "Notion" },
+      { src: slackIcon, alt: "Slack" },
+    ],
+    captions: ["onSubmit() → sheet.appendRow()", "rating ≥ 3 → filter, export table", "page.created() → post to #gtm"],
+  },
+  {
+    trigger: "on emailReceived():",
+    nodes: [
+      { src: gmailIcon, alt: "Gmail" },
+      { src: excelIcon, alt: "Excel" },
+      { src: outlookIcon, alt: "Outlook" },
+      { src: slackIcon, alt: "Slack" },
+    ],
+    captions: ["parse invoice → extract fields", "row.append() → finance_q3.xlsx", "mail.send() → approver queue"],
+  },
+  {
+    trigger: "on rowUpdated():",
+    nodes: [
+      { src: sheetsIcon, alt: "Google Sheets" },
+      { src: outlookIcon, alt: "Outlook" },
+      { src: notionIcon, alt: "Notion" },
+      { src: slackIcon, alt: "Slack" },
+    ],
+    captions: ["row.watch() → status change", "mail.send() → stakeholder digest", "sync → notion.rollup()"],
+  },
 ];
 
-function DetectsVisual() {
-  const hrs = useLoopCount(6.2);
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    const iv = setInterval(() => setStep((s) => (s + 1) % (VERIFY_STEPS.length + 2)), 1300);
-    return () => clearInterval(iv);
-  }, []);
+const DOT_COLORS = ["#D9A199", "#DCC08F", "#A6C29B"];
 
+// the automation Ori writes, line by line, above the chain it assembles —
+// the same {trigger, captions} feed both, so the code and the pipeline it
+// describes never fall out of sync
+function BuildCode({ chain, step, live }) {
+  const lines = [chain.trigger, ...chain.captions];
   return (
-    <div style={{ display: "flex", gap: 40, width: 560, height: 210, alignItems: "center" }}>
-      {/* the priced figure — what the verified pattern is costing */}
-      <div style={{ width: 236 }}>
-        <p style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 78, color: INK, margin: 0, lineHeight: 1 }}>
-          {hrs.toFixed(1)}
-          <span style={{ fontSize: 34 }}> hrs</span>
-        </p>
-        <p style={{ fontFamily: BODY, fontSize: 13.5, color: INK_SOFT, margin: "8px 0 16px" }}>
-          lost to this repeat, every week
-        </p>
-        {/* magnitude bar */}
-        <div style={{ height: 4, borderRadius: 2, background: "rgba(27,27,24,0.08)", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${(hrs / 6.2) * 100}%`, background: ACCENT, borderRadius: 2 }} />
-        </div>
+    <div style={{ ...PANEL, width: 380, padding: "13px 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10 }}>
+        {DOT_COLORS.map((c) => (
+          <span key={c} style={{ width: 6.5, height: 6.5, borderRadius: "50%", background: c, opacity: 0.6 }} />
+        ))}
       </div>
-
-      {/* the verification card — checks run, then the verdict clears it */}
-      <div style={{ ...PANEL, width: 236 }}>
-        <PanelHeader label="Verifying pattern" />
-        {VERIFY_STEPS.map((f, i) => {
-          const visible = step > i;
-          const isVerdict = i === VERIFY_STEPS.length - 1;
+      <PanelHeader label={live ? "Shipped" : "Writing automation"} />
+      <div style={{ minHeight: 88 }}>
+        {lines.map((l, i) => {
+          const shown = i === 0 ? true : step >= [0, 2, 5, 8][i];
+          const isCursor = i > 0 && step === [0, 2, 5, 8][i];
           return (
             <motion.div
-              key={f.text}
+              key={l}
               initial={false}
-              animate={{ opacity: visible ? 1 : 0, x: visible ? 0 : -6 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
+              animate={{ opacity: shown ? 1 : 0 }}
+              transition={{ duration: 0.25 }}
               style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: 8,
-                fontFamily: BODY,
-                fontSize: 13,
-                fontWeight: f.teal ? 600 : 400,
+                fontFamily: MONO,
+                fontSize: 11.5,
                 lineHeight: "22px",
-                color: f.teal ? ACCENT : INK,
-                borderTop: isVerdict ? "1px solid rgba(27,27,24,0.10)" : "none",
-                marginTop: isVerdict ? 8 : 0,
-                paddingTop: isVerdict ? 8 : 0,
+                color: i === lines.length - 1 ? ACCENT : INK,
+                paddingLeft: i === 0 ? 0 : 18,
+                whiteSpace: "nowrap",
               }}
             >
-              <span style={{ fontSize: 11, color: ACCENT, flexShrink: 0 }}>{f.teal ? "◆" : "✓"}</span>
-              {f.text}
+              {l}
+              {isCursor && (
+                <motion.span
+                  animate={{ opacity: [1, 0, 1] }}
+                  transition={{ duration: 0.7, repeat: Infinity }}
+                  style={{ display: "inline-block", width: 6, height: 13, marginLeft: 3, background: INK_SOFT, verticalAlign: "-2px" }}
+                />
+              )}
             </motion.div>
           );
         })}
@@ -556,152 +601,30 @@ function DetectsVisual() {
   );
 }
 
-function DetectsContent() {
-  return (
-    <div style={{ width: 560 }}>
-      <p style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.22em", color: INK_SOFT, margin: "0 0 14px" }}>
-        03 / 05
-      </p>
-
-      <h3 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 64, color: INK, margin: "0 0 26px", lineHeight: 1 }}>
-        Detects
-      </h3>
-
-      <DetectsVisual />
-
-      <p style={{ fontFamily: BODY, fontSize: 16.5, color: INK_SOFT, lineHeight: 1.6, margin: "26px 0 0", maxWidth: 560 }}>
-        Ori verifies which patterns are consistent enough to automate — then prices what they're
-        costing in hours and errors.
-      </p>
-    </div>
-  );
-}
-
-/* -------------------------------- Builds --------------------------------- */
-
-const BUILD_STAGES = [
-  { label: "New export", sub: "TRIGGER" },
-  { label: "Verify + map", sub: "GUARDRAIL" },
-  { label: "Write to sheet", sub: "ACTION" },
-];
-
-function BuildChip({ label, sub, visible }) {
-  return (
-    <motion.div
-      initial={false}
-      animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : 10 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      style={{ ...PANEL, width: 116, padding: "11px 13px", flexShrink: 0 }}
-    >
-      <p style={{ fontFamily: BODY, fontSize: 13, fontWeight: 500, color: INK, margin: 0, whiteSpace: "nowrap" }}>
-        {label}
-      </p>
-      <p style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.14em", color: INK_SOFT, margin: "4px 0 0" }}>
-        {sub}
-      </p>
-    </motion.div>
-  );
-}
-
-function BuildConn({ drawn }) {
-  return (
-    <div style={{ width: 30, height: 2, flexShrink: 0, position: "relative", margin: "0 -1px" }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(27,27,24,0.12)" }} />
-      <motion.div
-        initial={false}
-        animate={{ scaleX: drawn ? 1 : 0 }}
-        transition={{ duration: 0.45, ease: "easeOut" }}
-        style={{ position: "absolute", inset: 0, background: ACCENT, transformOrigin: "left center" }}
-      />
-    </div>
-  );
-}
-
-// the automation Ori writes, line by line — the code the user never sees
-const CODE_LINES = [
-  { t: "on  export(report_wk27):", indent: 0 },
-  { t: "verify · sender ok", indent: 1 },
-  { t: "map · A,B,F → sheet cols", indent: 1 },
-  { t: "append → sheet.sync ✓", indent: 1 },
-];
-
 function BuildsVisual() {
-  // one assembling loop: code writes itself, the pipeline builds, then it
-  // ships Live — holds, and rebuilds
-  const [step, setStep] = useState(0);
+  // one assembling loop per chain: the code writes itself, each stop lands,
+  // then the line + caption to its right draw in — holds, then the next
+  // automation takes its place
+  const [tick, setTick] = useState(0);
   useEffect(() => {
-    const iv = setInterval(() => setStep((s) => (s + 1) % 11), 560);
+    const iv = setInterval(() => setTick((t) => t + 1), 550);
     return () => clearInterval(iv);
   }, []);
-  const live = step >= 8;
+  const step = tick % 12;
+  const live = step >= 9;
+  const chain = BUILD_CHAINS[Math.floor(tick / 12) % BUILD_CHAINS.length];
 
   return (
-    <div style={{ width: 560, height: 268, display: "flex", flexDirection: "column", gap: 18 }}>
-      {/* Ori writing the automation */}
-      <div style={{ ...PANEL, width: 356, padding: "13px 16px" }}>
-        <PanelHeader label={live ? "Shipped" : "Writing automation"} />
-        <div style={{ minHeight: 92 }}>
-          {CODE_LINES.map((l, i) => {
-            const shown = step >= i + 1;
-            const isCursor = step === i + 1;
-            return (
-              <motion.div
-                key={l.t}
-                initial={false}
-                animate={{ opacity: shown ? 1 : 0 }}
-                transition={{ duration: 0.25 }}
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 11.5,
-                  lineHeight: "22px",
-                  color: i === CODE_LINES.length - 1 ? ACCENT : INK,
-                  paddingLeft: l.indent * 18,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {l.t}
-                {isCursor && (
-                  <motion.span
-                    animate={{ opacity: [1, 0, 1] }}
-                    transition={{ duration: 0.7, repeat: Infinity }}
-                    style={{ display: "inline-block", width: 6, height: 13, marginLeft: 3, background: INK_SOFT, verticalAlign: "-2px" }}
-                  />
-                )}
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* the pipeline it deploys */}
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <BuildChip {...BUILD_STAGES[0]} visible={step >= 2} />
-        <BuildConn drawn={step >= 4} />
-        <BuildChip {...BUILD_STAGES[1]} visible={step >= 5} />
-        <BuildConn drawn={step >= 6} />
-        <BuildChip {...BUILD_STAGES[2]} visible={step >= 7} />
-        <BuildConn drawn={step >= 8} />
-        <motion.div
-          initial={false}
-          animate={{ opacity: live ? 1 : 0, scale: live ? 1 : 0.9 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 7,
-            flexShrink: 0,
-            padding: "7px 13px",
-            borderRadius: 999,
-            background: ACCENT_SOFT,
-          }}
-        >
-          <motion.span
-            animate={live ? { opacity: [0.4, 1, 0.4] } : {}}
-            transition={{ duration: 1.2, ease: "easeInOut", repeat: Infinity }}
-            style={{ width: 6, height: 6, borderRadius: "50%", background: ACCENT }}
-          />
-          <span style={{ fontFamily: BODY, fontSize: 12, fontWeight: 600, color: ACCENT }}>Live</span>
-        </motion.div>
+    <div style={{ width: 560, display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+      <BuildCode chain={chain} step={step} live={live} />
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+        <TimelineIcon src={chain.nodes[0].src} alt={chain.nodes[0].alt} visible={step >= 0} />
+        <TimelineStep width={104} drawn={step >= 2} caption={chain.captions[0]} />
+        <TimelineIcon src={chain.nodes[1].src} alt={chain.nodes[1].alt} visible={step >= 3} />
+        <TimelineStep width={104} drawn={step >= 5} caption={chain.captions[1]} />
+        <TimelineIcon src={chain.nodes[2].src} alt={chain.nodes[2].alt} visible={step >= 6} />
+        <TimelineStep width={104} drawn={step >= 8} caption={chain.captions[2]} />
+        <TimelineIcon src={chain.nodes[3].src} alt={chain.nodes[3].alt} visible={step >= 9} />
       </div>
     </div>
   );
@@ -711,7 +634,7 @@ function BuildsContent() {
   return (
     <div style={{ width: 560 }}>
       <p style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.22em", color: INK_SOFT, margin: "0 0 14px" }}>
-        04 / 05
+        03 / 04
       </p>
 
       <h3 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 64, color: INK, margin: "0 0 26px", lineHeight: 1 }}>
@@ -721,8 +644,8 @@ function BuildsContent() {
       <BuildsVisual />
 
       <p style={{ fontFamily: BODY, fontSize: 16.5, color: INK_SOFT, lineHeight: 1.6, margin: "26px 0 0", maxWidth: 560 }}>
-        You approve, and Ori builds it — writing the automation and shipping it live. No canvas, no
-        nodes, no code to touch.
+        You approve, Ori builds — writing the automation, connecting the tools, and shipping it
+        live. You never touch a line of code.
       </p>
     </div>
   );
@@ -730,90 +653,153 @@ function BuildsContent() {
 
 /* ------------------------------ Maintains -------------------------------- */
 
-// each automation carries a live update that Ori folds in — a change lands,
-// then it integrates, then it's live again
-const MAINTAINED = [
-  { flow: "Approval → Slack", update: "Legal review added" },
-  { flow: "Deal → CRM", update: "New stage: Won" },
-  { flow: "Invoice → Sheet", update: "Tax column added" },
+// each loop edits one rule and retires one stale one — cycles to a new
+// example (different tool, different rule) each time it completes
+const MAINTAIN_EXAMPLES = [
+  { oldRule: "trigger: Slack #sales-updates", newRule: "trigger: Slack #revenue-updates", deprecated: "CRM field: deal_owner_legacy" },
+  { oldRule: "trigger: Sheet range A1:F20", newRule: "trigger: Sheet range A1:H20", deprecated: "Gmail label: old-invoices" },
+  { oldRule: "trigger: CRM stage = 'Won'", newRule: "trigger: CRM stage = 'Closed Won'", deprecated: "Slack channel: #legacy-ops" },
+];
+
+// named phases, each with its own hold time — the same {key, duration}
+// timer pattern WorkflowBuildDemo uses for its stage loop
+const MAINTAIN_PHASES = [
+  { key: "rest", duration: 1000 },
+  { key: "typing", duration: 700 },
+  { key: "verified", duration: 1000 },
+  { key: "retiring", duration: 700 },
+  { key: "retired", duration: 1000 },
+  { key: "summary", duration: 1400 },
 ];
 
 function MaintainsVisual() {
-  const [tick, setTick] = useState(0);
+  const [phaseIndex, setPhaseIndex] = useState(0);
+  const [exampleIndex, setExampleIndex] = useState(0);
+
   useEffect(() => {
-    const iv = setInterval(() => setTick((t) => t + 1), 1300);
-    return () => clearInterval(iv);
-  }, []);
-  const active = Math.floor(tick / 3) % MAINTAINED.length;
-  const phase = tick % 3; // 0 update lands · 1 integrating · 2 live
+    const t = setTimeout(() => {
+      setPhaseIndex((p) => {
+        const next = (p + 1) % MAINTAIN_PHASES.length;
+        if (next === 0) setExampleIndex((e) => (e + 1) % MAINTAIN_EXAMPLES.length);
+        return next;
+      });
+    }, MAINTAIN_PHASES[phaseIndex].duration);
+    return () => clearTimeout(t);
+  }, [phaseIndex]);
+
+  const phase = MAINTAIN_PHASES[phaseIndex].key;
+  const ex = MAINTAIN_EXAMPLES[exampleIndex];
+
+  const order = ["rest", "typing", "verified", "retiring", "retired", "summary"];
+  const at = (p) => order.indexOf(phase) >= order.indexOf(p);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <motion.span
-          animate={{ opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 1.3, ease: "easeInOut", repeat: Infinity }}
-          style={{ width: 6, height: 6, borderRadius: "50%", background: ACCENT }}
-        />
-        <span style={{ fontFamily: BODY, fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", color: ACCENT }}>
-          SELF-MAINTAINING
+    <div style={{ ...PANEL, width: 340 }}>
+      <PanelHeader label="Self-maintaining" />
+
+      {/* the rule edit — old line struck through, new line typed in below it,
+          same diff shorthand a reviewer would recognise */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, fontFamily: MONO, fontSize: 12.5, lineHeight: "20px" }}>
+        <span style={{ color: INK_SOFT, opacity: 0.6, flexShrink: 0 }}>−</span>
+        <span style={{ color: INK_SOFT, opacity: 0.6, textDecoration: "line-through", whiteSpace: "nowrap" }}>
+          {ex.oldRule}
         </span>
       </div>
+      <motion.div
+        animate={{ opacity: at("typing") ? 1 : 0, height: at("typing") ? 20 : 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        style={{ display: "flex", alignItems: "baseline", gap: 8, fontFamily: MONO, fontSize: 12.5, overflow: "hidden" }}
+      >
+        <span style={{ color: ACCENT, flexShrink: 0 }}>+</span>
+        <span style={{ color: INK, whiteSpace: "nowrap" }}>{ex.newRule}</span>
+      </motion.div>
+      <motion.div
+        animate={{ opacity: at("verified") ? 1 : 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 6,
+          fontFamily: BODY,
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: ACCENT,
+          marginTop: 6,
+        }}
+      >
+        <span>✓</span> Rule updated
+      </motion.div>
 
-      <div style={{ display: "flex", gap: 12 }}>
-        {MAINTAINED.map((m, i) => {
-          const isActive = active === i;
-          let status = "live";
-          let statusColor = INK_SOFT;
-          if (isActive && phase === 0) {
-            status = `+ ${m.update}`;
-            statusColor = INK;
-          } else if (isActive && phase === 1) {
-            status = "integrating…";
-            statusColor = ACCENT;
-          } else if (isActive && phase === 2) {
-            status = "updated ✓";
-            statusColor = ACCENT;
-          }
-          return (
-            <motion.div
-              key={m.flow}
-              animate={{ scale: isActive && phase === 0 ? [1, 1.05, 1] : 1 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              style={{ ...PANEL, width: 148, padding: "9px 13px", display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-start" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <motion.span
-                  animate={isActive && phase === 1 ? { opacity: [1, 0.3, 1] } : { opacity: [0.4, 1, 0.4] }}
-                  transition={{ duration: isActive && phase === 1 ? 0.6 : 1.4, ease: "easeInOut", repeat: Infinity, delay: i * 0.3 }}
-                  style={{ width: 6, height: 6, borderRadius: "50%", background: ACCENT, flexShrink: 0 }}
-                />
-                <span style={{ fontFamily: BODY, fontSize: 12, color: INK, whiteSpace: "nowrap" }}>{m.flow}</span>
-              </div>
-              <span style={{ fontFamily: BODY, fontSize: 10.5, color: statusColor, whiteSpace: "nowrap" }}>{status}</span>
-            </motion.div>
-          );
-        })}
-      </div>
+      {/* the retirement — a stale hook fades and gets tagged off */}
+      <motion.div
+        animate={{ opacity: at("retiring") ? 1 : 0, height: at("retiring") ? 34 : 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        style={{ overflow: "hidden", borderTop: at("retiring") ? "1px solid rgba(27,27,24,0.10)" : "none", marginTop: 10 }}
+      >
+        <motion.div
+          animate={{ opacity: at("retired") ? 0.55 : 1, x: at("retired") ? -4 : 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, paddingTop: 10 }}
+        >
+          <span style={{ fontFamily: MONO, fontSize: 12, color: INK_SOFT, whiteSpace: "nowrap" }}>{ex.deprecated}</span>
+          <motion.span
+            animate={{ opacity: at("retired") ? 1 : 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            style={{
+              padding: "1px 6px",
+              border: `1px solid ${RETIRE}`,
+              color: RETIRE,
+              fontFamily: MONO,
+              fontSize: 9,
+              letterSpacing: "0.06em",
+              flexShrink: 0,
+            }}
+          >
+            ✕ Retired
+          </motion.span>
+        </motion.div>
+      </motion.div>
+
+      {/* the running tally — same summary-row treatment as Audits' priced
+          verdict line */}
+      <motion.div
+        animate={{ opacity: at("summary") ? 1 : 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          fontFamily: BODY,
+          fontSize: 13,
+          fontWeight: 600,
+          lineHeight: "22px",
+          color: ACCENT,
+          borderTop: "1px solid rgba(27,27,24,0.10)",
+          marginTop: 10,
+          paddingTop: 8,
+        }}
+      >
+        <span style={{ fontSize: 11 }}>◆</span> 2 automations updated · 1 retired
+      </motion.div>
     </div>
   );
 }
 
 function MaintainsContent() {
   return (
-    <div style={{ width: 500, textAlign: "center" }}>
-      <p style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.22em", color: INK_SOFT, margin: "0 0 12px" }}>
-        05 / 05
+    <div style={{ width: 560 }}>
+      <p style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.22em", color: INK_SOFT, margin: "0 0 14px" }}>
+        04 / 04
       </p>
-      <h3 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 46, color: INK, margin: "0 0 26px", lineHeight: 1 }}>
+      <h3 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 64, color: INK, margin: "0 0 26px", lineHeight: 1 }}>
         Maintains
       </h3>
 
       <MaintainsVisual />
 
-      <p style={{ fontFamily: BODY, fontSize: 15, color: INK_SOFT, lineHeight: 1.6, margin: "26px auto 0", maxWidth: 410 }}>
-        Ori watches every run, repairing automations when your tools change and retiring the ones that
-        turn obsolete.
+      <p style={{ fontFamily: BODY, fontSize: 16.5, color: INK_SOFT, lineHeight: 1.6, margin: "26px 0 0", maxWidth: 480, textAlign: "left" }}>
+        As tools and rules change, Ori rewrites the automations that depend on them and retires
+        the ones that turn obsolete.
       </p>
     </div>
   );
@@ -850,15 +836,14 @@ function CreaseZoom() {
   });
 
   // dive into the top-left corner, pan corner to corner, then pull all the
-  // way back out for Maintains — the sheet never disappears; every stage is
-  // printed on its paper
+  // way back out to reveal the whole sheet — it never disappears; every
+  // stage is printed on its own paper
   const tx = useSpring(useTransform(scrollYProgress, CAM_KEYS, CAM_TX, { ease: EASE }), SPRING);
   const ty = useSpring(useTransform(scrollYProgress, CAM_KEYS, CAM_TY, { ease: EASE }), SPRING);
   const scale = useSpring(useTransform(scrollYProgress, CAM_KEYS, CAM_SCALE, { ease: EASE }), SPRING);
-  const maintainsOpacity = useTransform(scrollYProgress, MAINTAINS_FADE, [0, 1]);
 
   return (
-    <div ref={zoomRef} style={{ position: "relative", height: "560vh" }}>
+    <div ref={zoomRef} style={{ position: "relative", height: `${SCENE_VH}vh` }}>
       <div
         style={{
           position: "sticky",
@@ -894,25 +879,11 @@ function CreaseZoom() {
               <AuditsContent />
             </StagePrint>
             <StagePrint scrollYProgress={scrollYProgress} index={2}>
-              <DetectsContent />
-            </StagePrint>
-            <StagePrint scrollYProgress={scrollYProgress} index={3}>
               <BuildsContent />
             </StagePrint>
-
-            {/* the finale — centred on the whole sheet once it pulls back out */}
-            <motion.div
-              style={{
-                opacity: maintainsOpacity,
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
+            <StagePrint scrollYProgress={scrollYProgress} index={3}>
               <MaintainsContent />
-            </motion.div>
+            </StagePrint>
           </motion.div>
         </div>
       </div>
@@ -1019,27 +990,48 @@ function OffersRuler() {
 
   return (
     <div ref={ref} style={{ position: "relative", height: "320vh" }}>
-      <div style={{ position: "sticky", top: 0, height: "100vh", overflow: "hidden" }}>
-        {/* section heading, top-left */}
-        <div style={{ position: "absolute", top: 96, left: 64 }}>
+      {/* heading, task and ruler are one column, centred as a group — so the
+          slack sits evenly above and below the whole block rather than all
+          of it pooling under the ruler */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          height: "100vh",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          padding: "0 64px",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* section heading, left-aligned */}
+        <div style={{ alignSelf: "flex-start" }}>
           <p style={{ fontFamily: MONO, fontSize: 13, letterSpacing: "0.24em", color: INK_SOFT, margin: "0 0 14px" }}>
             THE KIND OF WORK ORI AUTOMATES
           </p>
           <h2 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 76, color: INK, margin: 0, lineHeight: 1 }}>
             Ori&rsquo;s Offer
           </h2>
+
+          {/* printed-caption rule, like FIG. 01 under the hero wordmark */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 16 }}>
+            <div style={{ width: 64, height: 1, background: "rgba(27,27,24,0.22)" }} />
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.16em", color: INK_SOFT }}>
+              FIG. 04 — 3 TASKS AUTOMATED
+            </span>
+          </div>
         </div>
 
-        {/* the current task + the ruler, centred */}
+        {/* the current task + the ruler */}
         <div
           style={{
-            position: "absolute",
-            inset: 0,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
             gap: 24,
+            marginTop: 56,
           }}
         >
           <div style={{ position: "relative", width: 640, height: 176 }}>
@@ -1077,7 +1069,7 @@ function OffersRuler() {
 
 export default function WhatSection() {
   return (
-    <section style={{ position: "relative", background: "transparent" }}>
+    <section id="what" style={{ position: "relative", background: "transparent" }}>
       <style>{FONT_IMPORT}</style>
 
       <CreaseZoom />

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
 const BODY = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
-const PANEL_BG = "#C5F3FF";
+const PANEL_BG = "#D8E5E8";
 const ACCENT = "#5C8A94";
 const INK_SOFT = "#8B897E";
 

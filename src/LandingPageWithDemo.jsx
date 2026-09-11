@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import craneLogo from "./assets/crane-logo-slate.svg";
 import WorkflowBuildDemo from "./WorkflowBuildDemo";
+import { getCurrentUser } from "./auth/realAuth";
 
 const BODY = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
 const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
@@ -11,38 +13,6 @@ const FONT_IMPORT = `@import url('https://fonts.cdnfonts.com/css/cmu-serif'); @i
 const INK = "#1B1B18";
 const INK_SOFT = "#6E6C62";
 const ACCENT = "#5C8A94";
-
-// the drafting desk — warm off-white with fine matte grain
-const PAPER_WARM = "#FBF9F4";
-const GRAIN =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.14'/%3E%3C/svg%3E\")";
-
-// table-of-contents style nav item: mono index + word, dashed underline on hover
-function NavLink({ index, children }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <span
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{ position: "relative", display: "inline-flex", alignItems: "baseline", gap: 6, cursor: "pointer", paddingBottom: 5 }}
-    >
-      <span style={{ fontFamily: MONO, fontSize: 10, color: hover ? ACCENT : INK_SOFT, transition: "color 0.15s ease" }}>
-        0{index}
-      </span>
-      <span
-        style={{ fontFamily: BODY, fontSize: 15, color: hover ? INK : INK_SOFT, transition: "color 0.15s ease" }}
-      >
-        {children}
-      </span>
-      <motion.span
-        initial={false}
-        animate={{ width: hover ? "100%" : "0%" }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-        style={{ position: "absolute", left: 0, bottom: 0, height: 0, borderTop: `1.5px dashed ${INK_SOFT}`, overflow: "hidden", display: "block" }}
-      />
-    </span>
-  );
-}
 
 // rounded blue button — system-sans label to match the nav links
 function TicketButton({ children }) {
@@ -93,13 +63,9 @@ function NavBar() {
         style={{ width: 50, height: 50, transformOrigin: "50% 90%" }}
       />
 
-      <div style={{ display: "flex", gap: 40 }}>
-        <NavLink index={1}>Why?</NavLink>
-        <NavLink index={2}>What?</NavLink>
-        <NavLink index={3}>How?</NavLink>
-      </div>
-
-      <TicketButton>Get in Touch</TicketButton>
+      <Link to={getCurrentUser() ? "/dashboard" : "/login"} style={{ textDecoration: "none" }}>
+        <TicketButton>Try it</TicketButton>
+      </Link>
     </div>
   );
 }
@@ -178,7 +144,7 @@ export default function LandingPageWithDemo() {
                   paddingLeft: 4,
                 }}
               >
-                AUTONOMOUS AUTOMATIONS FOR YOUR TEAM
+                STAY ON TOP OF IT WITH
               </div>
 
               <h1
@@ -197,10 +163,7 @@ export default function LandingPageWithDemo() {
                 }}
               >
                 <span style={{ display: "block", whiteSpace: "nowrap" }}>
-                  Ori turns your team's everyday work into automations that
-                </span>
-                <span style={{ display: "block", whiteSpace: "nowrap" }}>
-                  build and maintain themselves, without anyone writing a workflow.
+                  Learns how you function, then functions for you.
                 </span>
               </p>
 
@@ -208,7 +171,7 @@ export default function LandingPageWithDemo() {
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 22, paddingLeft: 4 }}>
                 <div style={{ width: 210, height: 1, background: "rgba(27,27,24,0.22)" }} />
                 <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", color: INK_SOFT }}>
-                  FIG. 01 — A WORKFLOW BUILDING ITSELF
+                  FIG. 01 — ORI, WORKING THROUGH YOUR DAY
                 </span>
               </div>
             </div>
