@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "steps": {
+    "install": {
+      "commands": [
+        "pip install torch --index-url https://download.pytorch.org/whl/cpu",
+        "pip install -e .",
+        "python -m spacy download en_core_web_lg"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "python -m ori.webchat"
+  }
+}

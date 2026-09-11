@@ -1,6 +1,6 @@
 from cryptography.fernet import Fernet
 
-from meridian.digest.store import DigestStore
+from ori.digest.store import DigestStore
 
 _KEY = Fernet.generate_key()
 

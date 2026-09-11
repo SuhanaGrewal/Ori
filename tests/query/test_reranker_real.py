@@ -1,6 +1,6 @@
 import pytest
 
-from meridian.query.reranker import build_reranker, rerank
+from ori.query.reranker import build_reranker, rerank
 
 try:
     _reranker = build_reranker()

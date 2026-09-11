@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from meridian.indexing.embedder import build_embedder, embed_chunks
-from meridian.indexing.vector_search import cosine_similarity_top_k
+from ori.indexing.embedder import build_embedder, embed_chunks
+from ori.indexing.vector_search import cosine_similarity_top_k
 
 try:
     _embedder = build_embedder()

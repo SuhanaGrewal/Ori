@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+import argparse
+
+from ori.common.config import ensure_dirs, load_config
+from ori.common.logging import get_logger
+from ori.conversation.store import ConversationStore
+from ori.entity_graph.store import EntityGraphStore
+from ori.inbox_intelligence.store import InboxIntelligenceStore
+from ori.indexing.embedder import build_embedder
+from ori.indexing.store import IndexStore
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.local_files.store import NotesStore
+from ori.query.anthropic_client import build_client
+from ori.query.answer import ask_with_compound_split
+from ori.query.history import record_question
+from ori.query.history_store import QueryHistoryStore
+from ori.query.prompt import build_abstain_message
+from ori.query.reranker import build_reranker
+from ori.query.router import route
+from ori.redaction.analyzer import build_analyzer_engine
+from ori.reminders.store import ReminderStore
+from ori.replies.store import DraftStore
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Ask a question over Ori's indexed content."
+    )
+    parser.add_argument("question", help="question to ask (wrap in quotes)")
+    parser.add_argument(
+        "--source",
+        choices=["gmail", "calendar", "docs", "local_files"],
+        help="Limit retrieval to one source. Defaults to searching all indexed sources.",
+    )
+    parser.add_argument(
+        "--top-k", type=int, default=5, help="Number of context chunks to retrieve (default: 5)."
+    )
+    parser.add_argument(
+        "--model", default=None, help="Override the Claude model to use (default: from .env's LLM_MODEL)."
+    )
+    parser.add_argument(
+        "--thread",
+        default=None,
+        help=(
+            "Conversation thread name - a follow-up question in the same thread "
+            "gets rewritten using prior turns before retrieval (e.g. \"what about "
+            "next month\" after asking about this month). Omit for a one-shot, "
+            "stateless question (default)."
+        ),
+    )
+    args = parser.parse_args()
+
+    config = load_config()
+    ensure_dirs(config)
+    logger = get_logger("ori.query.cli", log_dir=config.log_dir)
+
+    store = IndexStore(config.indexing_dir / "index.db")
+    embedder = build_embedder()
+    reranker = build_reranker()
+    analyzer = build_analyzer_engine()
+
+    client = build_client(config.llm_api_key) if config.llm_api_key else None
+    if client is None:
+        print("LLM_API_KEY is not set - showing retrieved context only, no answer will be generated.\n")
+
+    if client is not None:
+        # recorded regardless of which intent ends up answering it - only
+        # a "waiting on something" question (classified here) is ever
+        # checked for resolution and surfaced as an open follow-up (#9,
+        # see query/history.py and digest/gather.py).
+        history_store = QueryHistoryStore(config.query_dir / "query_history.db")
+        record_question(
+            args.question, history_store,
+            client=client, model=args.model or config.llm_model, analyzer=analyzer,
+            logger=logger, audit_log_dir=config.log_dir,
+        )
+
+    if client is not None:
+        # routing (stale threads / commitments / resolve / general) needs a
+        # real LLM call just to classify the message - with no client,
+        # skip straight to retrieval-only ask() below, same as always.
+        gmail_store = GmailStore(config.ingestion_dir / "gmail" / "gmail.db")
+        inbox_store = InboxIntelligenceStore(config.inbox_intelligence_dir / "commitments.db")
+        router_result = route(
+            args.question,
+            gmail_store=gmail_store,
+            inbox_store=inbox_store,
+            account_email=gmail_store.get_account_email(),
+            client=client,
+            model=args.model or config.llm_model,
+            analyzer=analyzer,
+            calendar_store=CalendarStore(config.ingestion_dir / "calendar" / "calendar.db"),
+            docs_store=DocsStore(config.ingestion_dir / "docs" / "docs.db"),
+            notes_store=NotesStore(config.ingestion_dir / "local_files" / "local_files.db"),
+            entity_store=EntityGraphStore(config.entity_graph_dir / "entity_graph.db"),
+            reminder_store=ReminderStore(config.reminders_dir / "reminders.db"),
+            draft_store=DraftStore(config.replies_dir / "drafts.db"),
+            logger=logger,
+            audit_log_dir=config.log_dir,
+        )
+        if router_result.answer is not None:
+            print(router_result.answer)
+            return
+
+    conversation_store = ConversationStore(config.conversation_dir / "conversations.db") if args.thread else None
+
+    result = ask_with_compound_split(
+        args.question,
+        store=store,
+        embedder=embedder,
+        reranker=reranker,
+        analyzer=analyzer,
+        client=client,
+        model=args.model or config.llm_model,
+        source=args.source,
+        logger=logger,
+        audit_log_dir=config.log_dir,
+        conversation_id=args.thread,
+        conversation_store=conversation_store,
+    )
+
+    if result.abstained:
+        print(build_abstain_message(args.question, result.abstain_reason))
+        return
+
+    if result.answer is not None:
+        print(result.answer)
+        print()
+        print(result.sources)
+        return
+
+    print(f"Retrieval-only results (confidence: {result.confidence:.2f}):\n")
+    for index, chunk in enumerate(result.chunks, start=1):
+        print(f"[{index}] ({chunk.source}, confidence {chunk.confidence:.2f})")
+        print(chunk.parent_text)
+        print()
+    print("LLM not configured - set LLM_API_KEY to enable answer generation.")
+
+
+if __name__ == "__main__":
+    main()

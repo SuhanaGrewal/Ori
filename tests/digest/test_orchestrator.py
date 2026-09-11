@@ -4,15 +4,18 @@ from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from meridian.digest.orchestrator import review_digest_job, run_digest_job
-from meridian.digest.store import DigestStore
+from ori.digest.orchestrator import review_digest_job, run_digest_job
+from ori.digest.store import DigestStore
 
 _NOW = datetime(2024, 6, 10, tzinfo=timezone.utc)
 _KEY = Fernet.generate_key()
 
 
 def _gmail_row():
-    return {"sender": "jane@example.com", "sent_at": "2024-06-05T00:00:00Z", "subject": "Budget", "body_text": "hello"}
+    return {
+        "sender": "jane@example.com", "sent_at": "2024-06-05T00:00:00Z", "subject": "Budget", "body_text": "hello",
+        "label_ids": '["INBOX"]',
+    }
 
 
 class _FakeStores:

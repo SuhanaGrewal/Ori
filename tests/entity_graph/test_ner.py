@@ -1,4 +1,4 @@
-from meridian.entity_graph.ner import ExtractedEntity, extract_entities
+from ori.entity_graph.ner import ExtractedEntity, extract_entities
 
 
 class _FakeSpan:

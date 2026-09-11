@@ -1,6 +1,6 @@
 import os
 
-from meridian.security.validation import MAX_FIELD_CHARS, is_within_folder, truncate_field
+from ori.security.validation import MAX_FIELD_CHARS, is_within_folder, truncate_field
 
 
 def test_is_within_folder_true_for_a_normal_nested_file(tmp_path):

@@ -1,4 +1,4 @@
-from meridian.indexing.chunking import (
+from ori.indexing.chunking import (
     _atomize,
     _split_oversized,
     pack_into_windows,
