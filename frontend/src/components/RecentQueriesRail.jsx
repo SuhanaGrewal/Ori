@@ -28,7 +28,7 @@ export default function RecentQueriesRail({ cards, activeCardId, onSelectCard, o
         onClick={() => setOpen((v) => !v)}
         aria-label="Recent queries"
         style={{
-          display: "flex", alignItems: "center", gap: 7,
+          position: "relative", zIndex: 51, display: "flex", alignItems: "center", gap: 7,
           fontFamily: BODY, fontWeight: 600, fontSize: 13, color: open ? INK : INK_SOFT,
           background: open ? ACCENT_SOFT : PAPER_WARM, border: `1px solid ${LINE}`, borderLeft: "none",
           borderRadius: "0 999px 999px 0", padding: "10px 16px 10px 12px", cursor: "pointer",
@@ -66,7 +66,7 @@ export default function RecentQueriesRail({ cards, activeCardId, onSelectCard, o
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
             style={{
-              position: "absolute", top: "calc(100% + 8px)", left: 0,
+              position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 51,
               width: 270, maxHeight: "min(70vh, 520px)", overflowY: "auto", background: PAPER_WARM,
               border: `1px solid ${LINE}`, borderRadius: 14,
               boxShadow: "0 20px 40px -14px rgba(27,27,24,0.28)", padding: "16px 14px",

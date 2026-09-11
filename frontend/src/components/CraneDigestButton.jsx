@@ -154,7 +154,7 @@ export default function CraneDigestButton({ userId }) {
         onClick={() => setOpen((v) => !v)}
         aria-label="Morning digest"
         style={{
-          position: "relative", border: "none", background: "transparent", cursor: "pointer",
+          position: "relative", zIndex: 191, border: "none", background: "transparent", cursor: "pointer",
           padding: 6, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
         }}
       >
