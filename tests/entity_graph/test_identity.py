@@ -1,4 +1,4 @@
-from meridian.entity_graph.identity import (
+from ori.entity_graph.identity import (
     PersonIdentity,
     normalize_text,
     parse_person_header,

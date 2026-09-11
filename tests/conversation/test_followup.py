@@ -1,4 +1,4 @@
-from meridian.conversation.followup import rewrite_followup_question
+from ori.conversation.followup import rewrite_followup_question
 
 
 class _FakeAnalyzer:

@@ -21,21 +21,21 @@ render() {
         "$1"
 }
 
-render "$PROJECT_DIR/config/com.meridian.autosync.plist" > "$LAUNCH_AGENTS_DIR/com.meridian.autosync.plist"
-render "$PROJECT_DIR/config/com.meridian.nightlydigest.plist" > "$LAUNCH_AGENTS_DIR/com.meridian.nightlydigest.plist"
-render "$PROJECT_DIR/config/com.meridian.calendarnotify.plist" > "$LAUNCH_AGENTS_DIR/com.meridian.calendarnotify.plist"
+render "$PROJECT_DIR/config/com.ori.autosync.plist" > "$LAUNCH_AGENTS_DIR/com.ori.autosync.plist"
+render "$PROJECT_DIR/config/com.ori.nightlydigest.plist" > "$LAUNCH_AGENTS_DIR/com.ori.nightlydigest.plist"
+render "$PROJECT_DIR/config/com.ori.calendarnotify.plist" > "$LAUNCH_AGENTS_DIR/com.ori.calendarnotify.plist"
 
 # in case an older install used the gmail-only job name
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.gmailsync.plist" 2>/dev/null || true
-rm -f "$LAUNCH_AGENTS_DIR/com.meridian.gmailsync.plist"
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.gmailsync.plist" 2>/dev/null || true
+rm -f "$LAUNCH_AGENTS_DIR/com.ori.gmailsync.plist"
 
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.autosync.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.nightlydigest.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.calendarnotify.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.autosync.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.nightlydigest.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.calendarnotify.plist" 2>/dev/null || true
 
-launchctl load -w "$LAUNCH_AGENTS_DIR/com.meridian.autosync.plist"
-launchctl load -w "$LAUNCH_AGENTS_DIR/com.meridian.nightlydigest.plist"
-launchctl load -w "$LAUNCH_AGENTS_DIR/com.meridian.calendarnotify.plist"
+launchctl load -w "$LAUNCH_AGENTS_DIR/com.ori.autosync.plist"
+launchctl load -w "$LAUNCH_AGENTS_DIR/com.ori.nightlydigest.plist"
+launchctl load -w "$LAUNCH_AGENTS_DIR/com.ori.calendarnotify.plist"
 
 echo "Installed:"
 echo "  - Full sync (Gmail, Calendar, Docs, local files) every 10 minutes"

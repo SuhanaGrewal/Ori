@@ -5,9 +5,9 @@ import httplib2
 import pytest
 from googleapiclient.errors import HttpError
 
-from meridian.ingestion.gmail.message_parser import parse_message
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.ingestion.gmail.sync import _full_backfill, run_sync
+from ori.ingestion.gmail.message_parser import parse_message
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.gmail.sync import _full_backfill, run_sync
 
 
 def _raw_message(message_id: str) -> dict:
@@ -287,8 +287,8 @@ def test_malformed_message_is_dead_lettered_and_batch_continues(tmp_path):
 
 
 def test_rate_limited_fetch_waits_then_succeeds(monkeypatch, tmp_path):
-    monkeypatch.setattr("meridian.common.google_api.time.sleep", lambda s: None)
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
 
     store = GmailStore(tmp_path / "gmail.db")
     service = _FakeService(
@@ -318,6 +318,31 @@ def test_expired_history_id_falls_back_to_full_resync(tmp_path):
 
     assert stats.sync_type == "full"
     assert store.get_sync_state().last_history_id == "2000"
+
+
+def test_quota_exhaustion_on_one_message_dead_letters_it_and_batch_continues(monkeypatch, tmp_path):
+    # found live: a real, large first-time Gmail backfill hit a genuine
+    # per-minute quota limit ("Units per minute per user") on one message.
+    # That error is correctly classified as transient/retryable (see
+    # google_api.py's _is_quota_error), but before this fix, exhausting
+    # all 5 retries on it aborted the ENTIRE remaining backfill - every
+    # message after the unlucky one was silently lost, not just that one.
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
+
+    store = GmailStore(tmp_path / "gmail.db")
+    quota_error = _http_error(403, reason="rateLimitExceeded")
+    service = _FakeService(
+        profile={"historyId": "1000"},
+        list_pages=[{"messages": [{"id": "m1"}, {"id": "m2"}]}],
+        get_responses={"m1": [quota_error] * 5, "m2": _raw_message("m2")},
+    )
+
+    stats = run_sync(service, store)
+
+    assert stats.fetch_failures == 1
+    assert stats.messages_fetched == 1
+    assert store.count_messages() == 1
 
 
 def test_permanent_error_during_fetch_propagates_without_retrying_forever(tmp_path):

@@ -2,12 +2,12 @@ import json
 
 import pytest
 
-from meridian.common import logging as logging_module
-from meridian.common.logging import get_logger, log_operation, register_secret
+from ori.common import logging as logging_module
+from ori.common.logging import get_logger, log_operation, register_secret
 
 
 def _log_lines(log_dir):
-    return (log_dir / "meridian.log").read_text().splitlines()
+    return (log_dir / "ori.log").read_text().splitlines()
 
 
 def test_log_operation_success_emits_json_with_required_fields(tmp_path):

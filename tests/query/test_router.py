@@ -1,15 +1,17 @@
 from datetime import datetime, timezone
 
-from meridian.entity_graph.store import EntityGraphStore
-from meridian.inbox_intelligence.store import InboxIntelligenceStore
-from meridian.ingestion.calendar.store import CalendarStore
-from meridian.ingestion.docs.store import DocsStore
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.ingestion.local_files.store import NotesStore
-from meridian.query.router import classify_intent, route
-from meridian.reminders.store import ReminderStore
-from meridian.replies.store import DraftStore
+from ori.entity_graph.store import EntityGraphStore
+from ori.inbox_intelligence.store import InboxIntelligenceStore
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.calendar.event_parser import ParsedEvent
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.local_files.store import NotesStore
+from ori.query.router import classify_intent, route
+from ori.query.router_prompt import CLASSIFY_SYSTEM_PROMPT
+from ori.reminders.store import ReminderStore
+from ori.replies.store import DraftStore
 
 _ACCOUNT_EMAIL = "me@example.com"
 _NOW = datetime(2024, 6, 10, tzinfo=timezone.utc)
@@ -20,6 +22,15 @@ def _message(message_id, thread_id, sender, sent_at, body_text="hello", subject=
         message_id=message_id, thread_id=thread_id, subject=subject, sender=sender,
         recipients=["someone@example.com"], sent_at=sent_at, body_text=body_text,
         label_ids=["INBOX"], content_hash=f"hash-{message_id}",
+    )
+
+
+def _event(event_id, summary, start_at, end_at) -> ParsedEvent:
+    return ParsedEvent(
+        calendar_id="primary", event_id=event_id, ical_uid=None, recurring_event_id=None,
+        summary=summary, description="", location="", status="confirmed",
+        start_at=start_at, end_at=end_at, is_all_day=False, organizer_email=None,
+        attendees=[], source_updated_at=None,
     )
 
 
@@ -52,6 +63,56 @@ class _FakeTextBlock:
 class _FakeClient:
     def __init__(self, replies):
         self.messages = _FakeMessages(replies)
+
+
+def test_classify_prompt_distinguishes_scoped_schedule_questions_from_broad_summary():
+    # real bug: "what do i have on this week" was classified BROAD_SUMMARY
+    # and answered with a giant unscoped dump of unrelated recent emails
+    # (Wix billing, PAN OTPs, promos) instead of a calendar answer -
+    # BROAD_SUMMARY's own examples ("what's been happening", "what's new")
+    # read too similarly to a schedule question for the classifier to
+    # reliably tell them apart without an explicit carve-out.
+    assert "what do i have on this week" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
+def test_classify_prompt_distinguishes_awkwardly_worded_questions_from_reminders():
+    # real bug: "laptop drop off when do i need to" (a question with
+    # scrambled word order, no leading question word) was classified
+    # REMINDER instead of GENERAL - it silently created an unwanted
+    # tracked reminder and hallucinated an unrelated free calendar slot,
+    # instead of just answering with the real drop-off date already in
+    # the account. The properly-ordered version of the same question
+    # ("when do i have to drop off my laptop") already worked correctly,
+    # confirming this was specifically a classification miss on unusual
+    # word order, not a retrieval problem.
+    assert "laptop drop off when do i need to" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
+def test_classify_prompt_distinguishes_named_item_questions_from_stale_threads():
+    # real bug: "billy wardrop thread status" and "what am i waiting for
+    # on my pan application" were classified STALE_THREADS instead of
+    # GENERAL - both ask about one specific, named item's own status, not
+    # the open-ended "what's waiting on my reply" list.
+    assert "billy wardrop thread status" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
+def test_classify_prompt_distinguishes_named_item_questions_from_commitments():
+    # real bug: "whats pending with my pan" was classified COMMITMENTS
+    # and answered "No open commitments right now" instead of actually
+    # answering about the PAN application - it's a question about one
+    # named item, not the open-ended commitments list.
+    assert "whats pending with my pan" in CLASSIFY_SYSTEM_PROMPT.lower()
+
+
+def test_classify_prompt_distinguishes_status_questions_from_resolve():
+    # real bug, more severe than the others: "is the laptop thing resolved
+    # yet" - a QUESTION - was classified RESOLVE and actually executed a
+    # write, silently marking a real reminder as dismissed with zero
+    # confirmation. A misclassification into a read-only category produces
+    # a wrong answer; a misclassification into RESOLVE takes an unrequested
+    # action - this is the one category where getting it wrong is not
+    # just unhelpful but actively does something nobody asked for.
+    assert "is the laptop thing resolved yet" in CLASSIFY_SYSTEM_PROMPT.lower()
 
 
 def test_classify_intent_stale_threads():
@@ -115,6 +176,25 @@ def test_route_stale_threads_summarizes_via_second_llm_call(tmp_path):
     assert result.intent == "stale_threads"
     assert result.answer == "Alice is waiting to hear back from you about something [1]."
     assert len(client.messages.calls) == 2
+
+
+def test_route_stale_threads_returns_citations_matching_threads(tmp_path):
+    # real bug: router-handled answers (as opposed to query.answer.ask())
+    # never carried citations through to the API response at all, even
+    # though the LLM is explicitly told to and does cite threads by
+    # bracket number in its prose - confirmed live via CEO-persona
+    # testing (webchat/server.py always returned citations: []).
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    gmail_store.upsert_message(_message("m1", "t1", "Alice <alice@example.com>", "2024-06-05T00:00:00+00:00", subject="Budget"))
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    client = _FakeClient(["STALE_THREADS", "Alice is waiting to hear back from you about the budget [1]."])
+
+    result = route(
+        "any threads need my approval", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+    )
+
+    assert result.citations == [{"label": "Alice <alice@example.com>", "detail": "Budget"}]
 
 
 def test_route_stale_threads_with_no_threads_skips_second_llm_call(tmp_path):
@@ -324,6 +404,27 @@ def test_route_broad_summary_gathers_and_summarizes(tmp_path):
     assert result.intent == "broad_summary"
     assert result.answer == "You got one email from Alice this week [1]."
     assert len(client.messages.calls) == 2
+
+
+def test_route_broad_summary_returns_citations_matching_items(tmp_path):
+    # same router-citations bug as stale_threads, confirmed live for
+    # broad_summary too ("whats most urgent right now" cited 15 bracket
+    # numbers in prose but got citations: [] back).
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    gmail_store.upsert_message(_message("m1", "t1", "Alice <alice@example.com>", "2024-06-08T00:00:00+00:00", subject="Budget"))
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store, docs_store, notes_store, entity_store = _empty_broad_ask_stores(tmp_path)
+    client = _FakeClient(["BROAD_SUMMARY", "You got one email from Alice this week [1]."])
+
+    result = route(
+        "summarize my recent emails", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store, docs_store=docs_store, notes_store=notes_store, entity_store=entity_store,
+    )
+
+    assert len(result.citations) == 1
+    assert "Alice" in result.citations[0]["label"]
+    assert "Budget" in result.citations[0]["label"]
 
 
 def test_route_broad_summary_with_nothing_gathered_skips_second_llm_call(tmp_path):
@@ -536,3 +637,126 @@ def test_route_draft_reply_without_account_email_returns_explanatory_message(tmp
 
     assert "gmail" in result.answer.lower()
     assert len(client.messages.calls) == 1
+
+
+def test_classify_intent_calendar_conflicts():
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    intent = classify_intent("did I have overlapping meetings today", client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer())
+
+    assert intent == "calendar_conflicts"
+
+
+def test_route_calendar_conflicts_without_calendar_store_falls_through_to_general(tmp_path):
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+    )
+
+    assert result.intent == "general"
+    assert result.answer is None
+
+
+def test_route_calendar_conflicts_detects_a_real_overlap(tmp_path):
+    # the actual scenario single-document retrieval has no mechanism for
+    # at all: each event is individually retrievable, but noticing they
+    # overlap needs comparing two already-retrieved items against each
+    # other, not just finding either one.
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    calendar_store.upsert_event(_event("e1", "Design Review", "2024-06-10T10:00:00+00:00", "2024-06-10T11:00:00+00:00"))
+    calendar_store.upsert_event(_event("e2", "1:1 with Nick", "2024-06-10T10:30:00+00:00", "2024-06-10T11:30:00+00:00"))
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert result.intent == "calendar_conflicts"
+    assert "Design Review" in result.answer
+    assert "1:1 with Nick" in result.answer
+    assert "Yes" in result.answer
+    assert len(client.messages.calls) == 1  # deterministic overlap check, no second LLM call
+
+
+def test_route_calendar_conflicts_reports_no_overlap_when_events_are_sequential(tmp_path):
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    calendar_store.upsert_event(_event("e1", "Design Review", "2024-06-10T10:00:00+00:00", "2024-06-10T11:00:00+00:00"))
+    calendar_store.upsert_event(_event("e2", "1:1 with Nick", "2024-06-10T11:00:00+00:00", "2024-06-10T11:30:00+00:00"))
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert "No overlapping meetings" in result.answer
+
+
+def test_route_calendar_conflicts_reports_no_events_for_an_empty_day(tmp_path):
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings today", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert "No calendar events found" in result.answer
+
+
+def test_route_calendar_conflicts_defaults_to_today_with_no_date_phrase(tmp_path):
+    # "any double-booked days" names no recognizable date phrase at all -
+    # extract_date_range only understands relative phrases, not a bare,
+    # date-less question like this, so it should default to today rather
+    # than erroring or silently returning nothing.
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    calendar_store.upsert_event(_event("e1", "Design Review", "2024-06-10T10:00:00+00:00", "2024-06-10T11:00:00+00:00"))
+    calendar_store.upsert_event(_event("e2", "1:1 with Nick", "2024-06-10T10:30:00+00:00", "2024-06-10T11:30:00+00:00"))
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "any double-booked days", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    assert "Yes" in result.answer
+    assert "2024-06-10" in result.answer
+
+
+def test_route_calendar_conflicts_reports_the_full_span_for_a_multi_day_range(tmp_path):
+    # real bug found via LIVE testing: "did I have overlapping meetings
+    # this week" (a 7-day range) reported "No calendar events found for
+    # 2024-06-10" - technically the range's start date, but read as if
+    # only that one day had actually been checked, when the whole week
+    # was. A single-day question ("today") should still read as just
+    # that one date, not a misleadingly wide "day to day" span.
+    gmail_store = GmailStore(tmp_path / "gmail.db")
+    inbox_store = InboxIntelligenceStore(tmp_path / "inbox.db")
+    calendar_store = CalendarStore(tmp_path / "calendar.db")
+    client = _FakeClient(["CALENDAR_CONFLICTS"])
+
+    result = route(
+        "did I have overlapping meetings this week", gmail_store=gmail_store, inbox_store=inbox_store,
+        account_email=_ACCOUNT_EMAIL, client=client, model="claude-haiku-4-5", analyzer=_FakeAnalyzer(), now=_NOW,
+        calendar_store=calendar_store,
+    )
+
+    # _NOW is 2024-06-10, a Monday - "this week" spans Mon 06-10 to Sun 06-16
+    assert "2024-06-10 to 2024-06-16" in result.answer

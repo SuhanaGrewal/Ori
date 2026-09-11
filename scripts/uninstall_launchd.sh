@@ -6,14 +6,14 @@ set -euo pipefail
 
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.gmailsync.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.autosync.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.nightlydigest.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.meridian.calendarnotify.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.gmailsync.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.autosync.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.nightlydigest.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.ori.calendarnotify.plist" 2>/dev/null || true
 
-rm -f "$LAUNCH_AGENTS_DIR/com.meridian.gmailsync.plist" \
-      "$LAUNCH_AGENTS_DIR/com.meridian.autosync.plist" \
-      "$LAUNCH_AGENTS_DIR/com.meridian.nightlydigest.plist" \
-      "$LAUNCH_AGENTS_DIR/com.meridian.calendarnotify.plist"
+rm -f "$LAUNCH_AGENTS_DIR/com.ori.gmailsync.plist" \
+      "$LAUNCH_AGENTS_DIR/com.ori.autosync.plist" \
+      "$LAUNCH_AGENTS_DIR/com.ori.nightlydigest.plist" \
+      "$LAUNCH_AGENTS_DIR/com.ori.calendarnotify.plist"
 
-echo "Removed Meridian's scheduled sync, nightly digest, and calendar-notification jobs."
+echo "Removed Ori's scheduled sync, nightly digest, and calendar-notification jobs."

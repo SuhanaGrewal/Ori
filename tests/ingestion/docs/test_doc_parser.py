@@ -1,6 +1,6 @@
 import pytest
 
-from meridian.ingestion.docs.doc_parser import (
+from ori.ingestion.docs.doc_parser import (
     DocParseError,
     _flatten_content,
     _flatten_table,
@@ -124,7 +124,7 @@ def test_parse_document_hash_changes_when_content_changes():
 
 
 def test_oversized_title_and_content_text_are_truncated():
-    from meridian.security.validation import MAX_FIELD_CHARS
+    from ori.security.validation import MAX_FIELD_CHARS
 
     raw = {
         "documentId": "doc-4",

@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from meridian.indexing.parent_child import ChunkRecord
-from meridian.indexing.store import IndexStore
-from meridian.query.retrieval import _fetch_and_filter_candidates, retrieve
+from ori.indexing.parent_child import ChunkRecord
+from ori.indexing.store import IndexStore
+from ori.query.retrieval import _fetch_and_filter_candidates, retrieve
 
 
 class _FakeReranker:
@@ -96,6 +96,216 @@ def test_fetch_and_filter_dedups_children_sharing_a_parent(tmp_path):
 
     assert len(rows) == 1
     assert rows[0]["parent_text"] == shared_parent
+
+
+def test_fetch_and_filter_excludes_revoked_sources(tmp_path):
+    # real bug: revoking a data-source scope in Settings only ever
+    # updated a display field - nothing in the query pipeline read it
+    # back to actually stop searching that source. This is the retrieval-
+    # level enforcement half of the fix.
+    store = IndexStore(tmp_path / "index.db")
+    _seed(
+        store, "calendar", "evt-1",
+        [ChunkRecord(text="meeting", parent_text="meeting", position=0, is_own_parent=True)],
+        {"summary": "Standup"},
+    )
+    _seed(
+        store, "gmail", "msg-1",
+        [ChunkRecord(text="email", parent_text="email", position=0, is_own_parent=True)],
+        {"subject": "Hi"},
+    )
+
+    rows = _fetch_and_filter_candidates(
+        store, ["calendar:evt-1:0000", "gmail:msg-1:0000"], None, frozenset({"calendar"})
+    )
+
+    assert [row["source"] for row in rows] == ["gmail"]
+
+
+def test_retrieve_excludes_revoked_sources_end_to_end(tmp_path):
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "calendar", "evt-1",
+        [ChunkRecord(text="team meeting", parent_text="team meeting", position=0, is_own_parent=True)],
+        [query_vec],
+        {"summary": "Standup"},
+    )
+    reranker = _FakeReranker({"team meeting": 10.0})
+
+    result = retrieve(store, "meeting", query_vec, reranker=reranker, excluded_sources=frozenset({"calendar"}))
+
+    assert result.abstained is True
+    assert result.chunks == []
+
+
+def test_retrieve_breaks_near_tied_scores_by_recency(tmp_path):
+    # real bug: asking the identical question several times against
+    # multiple near-identical real receipts from the same sender picked a
+    # different one each time, never consistently the actually most-recent
+    # one - the reranker's own near-tied scores aren't a meaningful
+    # ranking to trust as-is at that point.
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "receipt-old",
+        [ChunkRecord(text="anthropic receipt old", parent_text="anthropic receipt old", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-01-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-new",
+        [ChunkRecord(text="anthropic receipt new", parent_text="anthropic receipt new", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    # identical scores - a genuine tie, not just "close"
+    reranker = _FakeReranker({"anthropic receipt old": 5.0, "anthropic receipt new": 5.0})
+
+    result = retrieve(store, "anthropic charge", query_vec, reranker=reranker)
+
+    assert result.chunks[0].source_item_id == "receipt-new"
+
+
+def test_retrieve_recency_tiebreak_compares_whole_near_tied_group_not_just_top_two(tmp_path):
+    # real bug found via LIVE re-verification, not just the unit test
+    # above: with three real near-identical receipts, the true
+    # most-recent one scored ~0.09 below the top candidate, while a
+    # genuinely-older one sat right next to the top at ~0.02 below. An
+    # earlier version of this fix only compared the top two ranked
+    # candidates and "fixed" the wrong pair - promoting the middle
+    # receipt instead of the actual most recent one, since the real
+    # most-recent candidate wasn't even in slot #2 to be compared. Raw
+    # scores below reproduce that exact real gap pattern (sigmoid(-0.85)
+    # ~= 0.30, sigmoid(-0.94) ~= 0.28, sigmoid(-1.32) ~= 0.21).
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "receipt-oldest",
+        [ChunkRecord(text="receipt oldest", parent_text="receipt oldest", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-01-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-middle",
+        [ChunkRecord(text="receipt middle", parent_text="receipt middle", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-04-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-most-recent",
+        [ChunkRecord(text="receipt most recent", parent_text="receipt most recent", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-09-01T00:00:00Z"},
+    )
+    # two other real pool candidates the reranker clearly scores far
+    # below the receipts (well outside the tiebreak epsilon) - matches
+    # the real production shape (a wide corpus, only a few genuinely
+    # close candidates) rather than a store containing nothing else at
+    # all, which the tiebreak's own "did the reranker actually
+    # discriminate anything" guard (see test below) treats differently.
+    store.upsert_item_chunks(
+        "gmail", "unrelated-newsletter",
+        [ChunkRecord(text="unrelated newsletter", parent_text="unrelated newsletter", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Newsletter", "sent_at": "2024-03-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "unrelated-promo",
+        [ChunkRecord(text="unrelated promo", parent_text="unrelated promo", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Promo", "sent_at": "2024-02-01T00:00:00Z"},
+    )
+    reranker = _FakeReranker({
+        "receipt oldest": -0.85, "receipt middle": -0.94, "receipt most recent": -1.32,
+        "unrelated newsletter": -5.0, "unrelated promo": -5.5,
+    })
+
+    result = retrieve(store, "the charge", query_vec, reranker=reranker)
+
+    assert result.chunks[0].source_item_id == "receipt-most-recent"
+    # real bug found via LIVE re-verification AFTER this fix first
+    # shipped: all three receipts score well below the 0.5 abstain
+    # threshold (~0.30/0.28/0.21 here), so a resolved tiebreak that still
+    # left `abstained=True` handed the decision to ask()'s separate,
+    # non-deterministic per-candidate LLM relevance tiebreak - which
+    # iterated the same three candidates and could reject the one this
+    # recency check just chose, silently falling back to an older one.
+    # A real, resolved near-tie is its own confidence signal and should
+    # not need to survive a second, less predictable check.
+    assert result.abstained is False
+
+
+def test_retrieve_recency_tiebreak_does_not_bypass_abstain_when_nothing_is_relevant(tmp_path):
+    # real bug found by the eval harness's golden abstain-only questions:
+    # a genuinely irrelevant question scores every single candidate in
+    # the pool near-identically low (a real cross-encoder does this too
+    # when nothing matches, not just this test's fake one) - the WHOLE
+    # top-k ties, which the tiebreak's epsilon check alone can't tell
+    # apart from "several genuinely plausible near-duplicates tied while
+    # clearly-worse candidates sat below them" (the real receipts case).
+    # Trusting a tie that swallows the entire ranked list as a confidence
+    # signal wrongly turned a real "nothing found" into a confident wrong
+    # answer - this must still abstain.
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "doc-a",
+        [ChunkRecord(text="doc a", parent_text="doc a", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "A", "sent_at": "2024-01-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "doc-b",
+        [ChunkRecord(text="doc b", parent_text="doc b", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "B", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "doc-c",
+        [ChunkRecord(text="doc c", parent_text="doc c", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "C", "sent_at": "2024-09-01T00:00:00Z"},
+    )
+    # every candidate scores identically - the reranker found nothing to
+    # discriminate at all, not several plausible near-duplicates
+    reranker = _FakeReranker({"doc a": -8.0, "doc b": -8.0, "doc c": -8.0})
+
+    result = retrieve(store, "something entirely unrelated", query_vec, reranker=reranker)
+
+    assert result.abstained is True
+
+
+def test_retrieve_does_not_override_a_clear_score_gap(tmp_path):
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "gmail", "receipt-old-but-clearly-relevant",
+        [ChunkRecord(text="the real answer", parent_text="the real answer", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-01-01T00:00:00Z"},
+    )
+    store.upsert_item_chunks(
+        "gmail", "receipt-new-but-irrelevant",
+        [ChunkRecord(text="unrelated content", parent_text="unrelated content", position=0, is_own_parent=True)],
+        [query_vec], {"subject": "Receipt", "sent_at": "2024-06-01T00:00:00Z"},
+    )
+    reranker = _FakeReranker({"the real answer": 10.0, "unrelated content": -10.0})
+
+    result = retrieve(store, "question", query_vec, reranker=reranker)
+
+    assert result.chunks[0].source_item_id == "receipt-old-but-clearly-relevant"
+
+
+def test_retrieve_does_not_swap_tied_candidates_without_parseable_dates(tmp_path):
+    store = IndexStore(tmp_path / "index.db")
+    query_vec = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    store.upsert_item_chunks(
+        "docs", "doc-a",
+        [ChunkRecord(text="doc a content", parent_text="doc a content", position=0, is_own_parent=True)],
+        [query_vec], {"title": "Doc A"},
+    )
+    store.upsert_item_chunks(
+        "docs", "doc-b",
+        [ChunkRecord(text="doc b content", parent_text="doc b content", position=0, is_own_parent=True)],
+        [query_vec], {"title": "Doc B"},
+    )
+    reranker = _FakeReranker({"doc a content": 5.0, "doc b content": 5.0})
+
+    result = retrieve(store, "question", query_vec, reranker=reranker)
+
+    # docs have no date concept at all - order stays whatever the stable
+    # sort already produced, no crash from the missing dates
+    assert {c.source_item_id for c in result.chunks} == {"doc-a", "doc-b"}
 
 
 def test_retrieve_returns_high_confidence_result(tmp_path):

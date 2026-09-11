@@ -1,4 +1,4 @@
-from meridian.inbox_intelligence.gmail_filters import NON_ACTIONABLE_CATEGORIES, looks_like_auto_reply
+from ori.inbox_intelligence.gmail_filters import NON_ACTIONABLE_CATEGORIES, looks_like_auto_reply
 
 
 def test_auto_reply_subject_variants_are_detected():

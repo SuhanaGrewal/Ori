@@ -4,9 +4,9 @@ import httplib2
 import pytest
 from googleapiclient.errors import HttpError
 
-from meridian.ingestion.docs.doc_parser import ParsedDoc
-from meridian.ingestion.docs.store import DocsStore
-from meridian.ingestion.docs.sync import (
+from ori.ingestion.docs.doc_parser import ParsedDoc
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.docs.sync import (
     SyncStats,
     _ChangesTokenInvalid,
     _fetch_and_store,
@@ -434,8 +434,8 @@ def test_incremental_sync_permanent_error_propagates(tmp_path):
 
 
 def test_incremental_sync_rate_limited_then_succeeds(monkeypatch, tmp_path):
-    monkeypatch.setattr("meridian.common.google_api.time.sleep", lambda s: None)
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
 
     store = DocsStore(tmp_path / "docs.db")
     drive_service = _FakeDriveService(

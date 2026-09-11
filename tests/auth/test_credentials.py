@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from meridian.auth import credentials as credentials_module
-from meridian.common.config import Config
+from ori.auth import credentials as credentials_module
+from ori.common.config import Config
 
 
 def _make_config(tmp_path) -> Config:

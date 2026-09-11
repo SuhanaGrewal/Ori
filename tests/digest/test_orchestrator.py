@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from meridian.digest.orchestrator import review_digest_job, run_digest_job
-from meridian.digest.store import DigestStore
+from ori.digest.orchestrator import review_digest_job, run_digest_job
+from ori.digest.store import DigestStore
 
 _NOW = datetime(2024, 6, 10, tzinfo=timezone.utc)
 _KEY = Fernet.generate_key()

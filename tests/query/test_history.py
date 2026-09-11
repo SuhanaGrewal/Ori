@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from meridian.query.history import check_open_questions, record_question
-from meridian.query.history_store import QueryHistoryStore
+from ori.query.history import check_open_questions, record_question
+from ori.query.history_store import QueryHistoryStore
 
 
 class _FakeAnalyzer:

@@ -4,9 +4,9 @@ import httplib2
 import pytest
 from googleapiclient.errors import HttpError
 
-from meridian.ingestion.calendar.event_parser import parse_event
-from meridian.ingestion.calendar.store import CalendarStore
-from meridian.ingestion.calendar.sync import (
+from ori.ingestion.calendar.event_parser import parse_event
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.calendar.sync import (
     SyncStats,
     _full_backfill,
     _incremental_sync,
@@ -284,8 +284,8 @@ def test_incremental_sync_permanent_error_propagates(tmp_path):
 
 
 def test_incremental_sync_rate_limited_then_succeeds(monkeypatch, tmp_path):
-    monkeypatch.setattr("meridian.common.google_api.time.sleep", lambda s: None)
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
 
     store = CalendarStore(tmp_path / "calendar.db")
     service = _FakeCalendarService(

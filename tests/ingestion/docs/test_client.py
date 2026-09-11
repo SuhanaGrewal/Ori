@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from meridian.ingestion.docs import client as client_module
+from ori.ingestion.docs import client as client_module
 
 
 def test_build_drive_service_uses_get_credentials_when_none_injected(monkeypatch):

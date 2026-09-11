@@ -1,13 +1,13 @@
 import numpy as np
 
-from meridian.entity_graph.orchestrator import run_extraction, run_topic_pass
-from meridian.entity_graph.store import EntityGraphStore
-from meridian.indexing.parent_child import ChunkRecord
-from meridian.indexing.store import IndexStore
-from meridian.ingestion.calendar.event_parser import ParsedEvent
-from meridian.ingestion.calendar.store import CalendarStore
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
+from ori.entity_graph.orchestrator import run_extraction, run_topic_pass
+from ori.entity_graph.store import EntityGraphStore
+from ori.indexing.parent_child import ChunkRecord
+from ori.indexing.store import IndexStore
+from ori.ingestion.calendar.event_parser import ParsedEvent
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
 
 
 class _FakeSpan:

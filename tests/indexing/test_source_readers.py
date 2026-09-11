@@ -1,17 +1,17 @@
-from meridian.indexing.source_readers import (
+from ori.indexing.source_readers import (
     read_calendar_items,
     read_docs_items,
     read_gmail_items,
     read_local_files_items,
 )
-from meridian.ingestion.calendar.event_parser import ParsedEvent
-from meridian.ingestion.calendar.store import CalendarStore
-from meridian.ingestion.docs.doc_parser import ParsedDoc
-from meridian.ingestion.docs.store import DocsStore
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
-from meridian.ingestion.local_files.note_parser import ParsedNote
-from meridian.ingestion.local_files.store import NotesStore
+from ori.ingestion.calendar.event_parser import ParsedEvent
+from ori.ingestion.calendar.store import CalendarStore
+from ori.ingestion.docs.doc_parser import ParsedDoc
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
+from ori.ingestion.local_files.note_parser import ParsedNote
+from ori.ingestion.local_files.store import NotesStore
 
 
 def _note(path="note.txt", content_text="Some note content.") -> ParsedNote:

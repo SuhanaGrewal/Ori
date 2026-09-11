@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
-from meridian.inbox_intelligence.stale_threads import find_stale_threads
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
+from ori.inbox_intelligence.stale_threads import find_stale_threads
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
 
 _NOW = datetime(2024, 6, 10, tzinfo=timezone.utc)
 _ACCOUNT_EMAIL = "me@example.com"

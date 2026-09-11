@@ -1,7 +1,7 @@
 import numpy as np
 
-from meridian.indexing.parent_child import ChunkRecord
-from meridian.indexing.store import IndexStore
+from ori.indexing.parent_child import ChunkRecord
+from ori.indexing.store import IndexStore
 
 
 def _records(*texts: str) -> list[ChunkRecord]:

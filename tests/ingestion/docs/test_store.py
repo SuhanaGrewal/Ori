@@ -1,5 +1,5 @@
-from meridian.ingestion.docs.doc_parser import ParsedDoc
-from meridian.ingestion.docs.store import DocsStore
+from ori.ingestion.docs.doc_parser import ParsedDoc
+from ori.ingestion.docs.store import DocsStore
 
 
 def _doc(doc_id="doc-1", title="My Doc", content_text="Hello", modified_time="2024-06-01T00:00:00.000Z") -> ParsedDoc:

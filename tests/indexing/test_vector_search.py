@@ -1,8 +1,8 @@
 import numpy as np
 
-from meridian.indexing.parent_child import ChunkRecord
-from meridian.indexing.store import IndexStore
-from meridian.indexing.vector_search import cosine_similarity_top_k, search
+from ori.indexing.parent_child import ChunkRecord
+from ori.indexing.store import IndexStore
+from ori.indexing.vector_search import cosine_similarity_top_k, search
 
 
 def _record(text: str) -> list[ChunkRecord]:

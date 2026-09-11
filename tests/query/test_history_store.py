@@ -1,4 +1,4 @@
-from meridian.query.history_store import QueryHistoryStore
+from ori.query.history_store import QueryHistoryStore
 
 
 def test_add_question_and_get_question(tmp_path):

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from meridian.redaction.custom_recognizers import Span
-from meridian.redaction.tokenize import (
+from ori.redaction.custom_recognizers import Span
+from ori.redaction.tokenize import (
     TokenizationResult,
     _resolve_overlaps,
     _spans_overlap,
@@ -149,6 +149,82 @@ def test_tokenize_repeated_value_still_counts_every_occurrence_in_entity_counts(
     assert result.entity_counts == {"PERSON": 2}
 
 
+def test_tokenize_reuses_placeholder_across_case_difference():
+    # real bug, reproduced 3 separate ways via live CEO-persona testing:
+    # a casually-typed lowercase question ("billy wardrop") and a formal
+    # email header's capitalized sender ("Billy Wardrop") were getting
+    # DIFFERENT placeholder numbers purely from casing, exactly the
+    # "two unrelated people" failure test_tokenize_reuses_placeholder_
+    # for_identical_repeated_value already fixed for exact duplicates -
+    # this is the same bug, just triggered by case rather than an exact
+    # match. The model then denied the lowercase mention was in its
+    # context while citing the capitalized one as a completely separate
+    # person - self-contradicting in the same response. Confirmed
+    # end-to-end with the real presidio analyzer before this fix (both
+    # "billy wardrop" and "Billy Wardrop" ARE detected as PERSON spans
+    # regardless of case - the bug was purely in placeholder assignment,
+    # not entity detection).
+    #
+    # The stored mapping value must be the properly-cased "Billy Wardrop",
+    # not the lowercase question text - found via a second real bug this
+    # same fix introduced initially (storing whichever occurrence is
+    # leftmost): build_user_message always puts the question before the
+    # numbered context blocks, so a question that itself names the person
+    # is always leftmost, and untokenize() rendered every occurrence -
+    # including ones quoted from the properly-capitalized source email -
+    # in the user's own casual lowercase.
+    text = "who is billy wardrop\n\nfrom: Billy Wardrop"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=7, end=20),
+            Span(entity_type="PERSON", start=28, end=41),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "who is <PERSON_1>\n\nfrom: <PERSON_1>"
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop"}
+
+
+def test_tokenize_reuses_placeholder_across_case_difference_for_email_address():
+    # same bug, confirmed a second way in real testing: a lowercase email
+    # address in the question vs. the capitalized address in the actual
+    # message header. Stored value must be the properly-cased address.
+    text = "anything from billy.wardrop@ed.ac.uk\n\nfrom: Billy.Wardrop@ed.ac.uk"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="EMAIL_ADDRESS", start=14, end=36),
+            Span(entity_type="EMAIL_ADDRESS", start=44, end=66),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == (
+        "anything from <EMAIL_ADDRESS_1>\n\nfrom: <EMAIL_ADDRESS_1>"
+    )
+    assert result.mapping == {"<EMAIL_ADDRESS_1>": "Billy.Wardrop@ed.ac.uk"}
+
+
+def test_tokenize_keeps_properly_cased_value_when_it_occurs_first():
+    # order independence: when the properly-cased occurrence comes first
+    # and a lowercase one follows, the canonical value should still be
+    # the properly-cased form (not overwritten by the later lowercase
+    # occurrence).
+    text = "from: Billy Wardrop\n\nwho is billy wardrop"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=6, end=19),
+            Span(entity_type="PERSON", start=28, end=41),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop"}
+
+
 def test_tokenize_distinct_values_of_same_type_still_get_separate_placeholders():
     text = "Billy Wardrop met Billy Smith"
     analyzer = _FakeAnalyzer(
@@ -162,6 +238,68 @@ def test_tokenize_distinct_values_of_same_type_still_get_separate_placeholders()
 
     assert result.tokenized_text == "<PERSON_1> met <PERSON_2>"
     assert result.mapping == {"<PERSON_1>": "Billy Wardrop", "<PERSON_2>": "Billy Smith"}
+
+
+def test_tokenize_consumes_wrapping_brackets_in_email_header_format():
+    # real bug, found by reconstructing the exact tokenized text sent to
+    # the model for a live failing question: an email header's "Name
+    # <email@domain>" format left the placeholder NESTED inside the
+    # original literal brackets - "Billy Wardrop <<EMAIL_ADDRESS_1>>" -
+    # since only the inner address substring (not the surrounding "<"/">")
+    # was ever part of the matched span. That nested-bracket mangling was
+    # confusing enough that the model denied an email address was present
+    # at all, despite it sitting right next to the person's own name and
+    # being cited as a source. Fix: extend the span to consume immediately
+    # -adjacent literal brackets, so the placeholder cleanly replaces the
+    # whole "<email>" unit instead of nesting inside it.
+    text = "From: Billy Wardrop <Billy.Wardrop@ed.ac.uk>"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=6, end=19),
+            Span(entity_type="EMAIL_ADDRESS", start=21, end=43),
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "From: <PERSON_1> <EMAIL_ADDRESS_1>"
+    assert result.mapping == {
+        "<PERSON_1>": "Billy Wardrop",
+        "<EMAIL_ADDRESS_1>": "Billy.Wardrop@ed.ac.uk",
+    }
+
+
+def test_tokenize_does_not_extend_over_brackets_that_are_not_adjacent():
+    text = "email: Billy.Wardrop@ed.ac.uk (no brackets here)"
+    analyzer = _FakeAnalyzer([Span(entity_type="EMAIL_ADDRESS", start=7, end=29)])
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "email: <EMAIL_ADDRESS_1> (no brackets here)"
+
+
+def test_tokenize_dedupes_possessive_form_with_plain_name():
+    # real bug, found by reconstructing the exact tokenized text sent to
+    # the model for a live failing follow-up ("what is Billy Wardrop's
+    # email address?"): presidio matched the whole "Billy Wardrop's"
+    # (including the possessive suffix) as one PERSON span - a different
+    # exact substring than an email header's plain "Billy Wardrop", so
+    # even after the casefold fix for case differences, the two got
+    # separate placeholders. The model then saw two unrelated people and
+    # denied one had an email address while citing the other as the
+    # source for it.
+    text = "From: Billy Wardrop\n\nwhat is Billy Wardrop's email address?"
+    analyzer = _FakeAnalyzer(
+        [
+            Span(entity_type="PERSON", start=6, end=19),
+            Span(entity_type="PERSON", start=29, end=44),  # "Billy Wardrop's", incl. suffix
+        ]
+    )
+
+    result = tokenize_for_external_call(text, analyzer=analyzer)
+
+    assert result.tokenized_text == "From: <PERSON_1>\n\nwhat is <PERSON_1>'s email address?"
+    assert result.mapping == {"<PERSON_1>": "Billy Wardrop"}
 
 
 def test_tokenize_hard_secret_becomes_redacted_marker_not_in_mapping():

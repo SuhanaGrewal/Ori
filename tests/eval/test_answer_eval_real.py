@@ -3,23 +3,23 @@ import os
 import pytest
 
 _LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
-_RUN_LIVE = os.environ.get("MERIDIAN_RUN_LIVE_LLM_TESTS") == "1"
+_RUN_LIVE = os.environ.get("ORI_RUN_LIVE_LLM_TESTS") == "1"
 
 pytestmark = pytest.mark.skipif(
     not (_LLM_API_KEY and _RUN_LIVE),
-    reason="live claude call - set LLM_API_KEY and MERIDIAN_RUN_LIVE_LLM_TESTS=1 to run",
+    reason="live claude call - set LLM_API_KEY and ORI_RUN_LIVE_LLM_TESTS=1 to run",
 )
 
 
 def test_golden_answers_never_cite_out_of_range_sources(tmp_path):
     import numpy as np
 
-    from meridian.indexing.embedder import build_embedder
-    from meridian.indexing.store import IndexStore
-    from meridian.query.anthropic_client import build_client
-    from meridian.query.answer import ask
-    from meridian.query.reranker import build_reranker
-    from meridian.redaction.analyzer import build_analyzer_engine
+    from ori.indexing.embedder import build_embedder
+    from ori.indexing.store import IndexStore
+    from ori.query.anthropic_client import build_client
+    from ori.query.answer import ask
+    from ori.query.reranker import build_reranker
+    from ori.redaction.analyzer import build_analyzer_engine
     from tests.eval.golden_dataset import GOLDEN_DOCS, GOLDEN_QUESTIONS, build_golden_store
     from tests.eval.scoring import extract_citation_indices
 

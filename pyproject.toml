@@ -1,5 +1,5 @@
 [project]
-name = "meridian"
+name = "ori"
 version = "0.1.0"
 description = "Local-first personal knowledge assistant grounded in Gmail, Calendar, Docs, and local notes/transcripts."
 requires-python = ">=3.11"
@@ -16,6 +16,12 @@ dependencies = [
     "spacy>=3.8",
     "langgraph>=1.2",
     "langgraph-checkpoint-sqlite>=3.1",
+    "fastapi>=0.141",
+    "uvicorn>=0.52",
+    "python-docx>=1.1",
+    "pypdf>=5.0",
+    "pytesseract>=0.3",
+    "Pillow>=10.0",
 ]
 
 [project.optional-dependencies]

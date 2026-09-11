@@ -4,8 +4,8 @@ import httplib2
 import pytest
 from googleapiclient.errors import HttpError
 
-from meridian.common.google_api import execute_with_retry
-from meridian.common.retry import RetryExhaustedError
+from ori.common.google_api import execute_with_retry
+from ori.common.retry import RetryExhaustedError
 
 
 def _http_error(status: int, *, retry_after: str | None = None, reason: str | None = None) -> HttpError:
@@ -32,8 +32,8 @@ class _FakeRequest:
 
 def test_429_with_retry_after_sleeps_then_retries_and_succeeds(monkeypatch):
     sleeps = []
-    monkeypatch.setattr("meridian.common.google_api.time.sleep", lambda s: sleeps.append(s))
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: sleeps.append(s))
 
     request = _FakeRequest([_http_error(429, retry_after="12"), "ok"])
 
@@ -45,8 +45,8 @@ def test_429_with_retry_after_sleeps_then_retries_and_succeeds(monkeypatch):
 
 def test_429_without_retry_after_falls_back_to_exponential_backoff(monkeypatch):
     sleeps = []
-    monkeypatch.setattr("meridian.common.google_api.time.sleep", lambda s: sleeps.append(("google_api", s)))
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: sleeps.append(("retry", s)))
+    monkeypatch.setattr("ori.common.google_api.time.sleep", lambda s: sleeps.append(("google_api", s)))
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: sleeps.append(("retry", s)))
 
     request = _FakeRequest([_http_error(429, reason="rateLimitExceeded"), "ok"])
 
@@ -58,7 +58,7 @@ def test_429_without_retry_after_falls_back_to_exponential_backoff(monkeypatch):
 
 
 def test_quota_403_is_treated_like_a_rate_limit(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     request = _FakeRequest([_http_error(403, reason="userRateLimitExceeded"), "ok"])
 
     result = execute_with_retry(request, max_attempts=3, base_delay=0.01)
@@ -67,7 +67,7 @@ def test_quota_403_is_treated_like_a_rate_limit(monkeypatch):
 
 
 def test_5xx_is_retried_then_succeeds(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     request = _FakeRequest([_http_error(503), "ok"])
 
     result = execute_with_retry(request, max_attempts=3, base_delay=0.01)
@@ -80,7 +80,7 @@ def test_5xx_is_retried_then_succeeds(monkeypatch):
     [(400, None), (401, None), (403, "insufficientPermissions"), (404, None)],
 )
 def test_permanent_errors_propagate_without_retry(monkeypatch, status, reason):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     request = _FakeRequest([_http_error(status, reason=reason)])
 
     with pytest.raises(HttpError):
@@ -88,7 +88,7 @@ def test_permanent_errors_propagate_without_retry(monkeypatch, status, reason):
 
 
 def test_connection_timeout_is_retried_then_succeeds(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     request = _FakeRequest([TimeoutError("The read operation timed out"), "ok"])
 
     result = execute_with_retry(request, max_attempts=3, base_delay=0.01)
@@ -97,7 +97,7 @@ def test_connection_timeout_is_retried_then_succeeds(monkeypatch):
 
 
 def test_connection_error_is_retried_then_succeeds(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     request = _FakeRequest([ConnectionError("connection reset"), "ok"])
 
     result = execute_with_retry(request, max_attempts=3, base_delay=0.01)
@@ -106,7 +106,7 @@ def test_connection_error_is_retried_then_succeeds(monkeypatch):
 
 
 def test_connection_timeout_exhausts_retries_and_raises(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     request = _FakeRequest([TimeoutError("timeout"), TimeoutError("timeout"), TimeoutError("timeout")])
 
     with pytest.raises(RetryExhaustedError):
@@ -114,7 +114,7 @@ def test_connection_timeout_exhausts_retries_and_raises(monkeypatch):
 
 
 def test_retries_exhausted_raises_retry_exhausted_error(monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     request = _FakeRequest([_http_error(503), _http_error(503), _http_error(503)])
 
     with pytest.raises(RetryExhaustedError):

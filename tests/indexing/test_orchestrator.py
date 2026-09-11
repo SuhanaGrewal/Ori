@@ -1,11 +1,11 @@
 import numpy as np
 
-from meridian.indexing.orchestrator import IndexStats, index_source, run_indexing
-from meridian.indexing.store import IndexStore
-from meridian.ingestion.docs.doc_parser import ParsedDoc
-from meridian.ingestion.docs.store import DocsStore
-from meridian.ingestion.gmail.message_parser import ParsedMessage
-from meridian.ingestion.gmail.store import GmailStore
+from ori.indexing.orchestrator import IndexStats, index_source, run_indexing
+from ori.indexing.store import IndexStore
+from ori.ingestion.docs.doc_parser import ParsedDoc
+from ori.ingestion.docs.store import DocsStore
+from ori.ingestion.gmail.message_parser import ParsedMessage
+from ori.ingestion.gmail.store import GmailStore
 
 
 class _FakeEmbedder:

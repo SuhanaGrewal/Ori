@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from meridian.ingestion.local_files.note_parser import (
+from ori.ingestion.local_files.note_parser import (
     NoteParseError,
     ParsedNote,
     _read_file_bytes,
@@ -35,7 +35,7 @@ def test_read_file_bytes_reads_real_file(tmp_path):
 
 
 def test_read_file_bytes_retries_transient_oserror_then_succeeds(tmp_path, monkeypatch):
-    monkeypatch.setattr("meridian.common.retry.time.sleep", lambda s: None)
+    monkeypatch.setattr("ori.common.retry.time.sleep", lambda s: None)
     path = tmp_path / "note.txt"
     path.write_bytes(b"hello world")
 
@@ -80,7 +80,7 @@ def test_parse_note_file_invalid_utf8_raises_note_parse_error(tmp_path):
 
 
 def test_oversized_note_content_is_truncated(tmp_path):
-    from meridian.security.validation import MAX_FIELD_CHARS
+    from ori.security.validation import MAX_FIELD_CHARS
 
     notes_folder = tmp_path / "notes"
     notes_folder.mkdir()

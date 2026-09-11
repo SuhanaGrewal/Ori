@@ -1,4 +1,4 @@
-# Meridian
+# Ori
 
 Local-first personal knowledge assistant. Connects to Gmail, Google Calendar,
 Google Docs (read-only OAuth), and a local notes/transcripts folder; indexes
@@ -22,7 +22,7 @@ sends or executes automatically.
 ## Project layout
 
 ```
-src/meridian/
+src/ori/
   auth/             Phase 1 — Google OAuth (single consent, readonly scopes), token storage
   ingestion/
     gmail/          Phase 2 — Gmail polling + History API incremental sync
@@ -78,7 +78,7 @@ first use — no manual step like spaCy's.
 
 ### Phase 1 prerequisites (Google OAuth)
 
-Before running `python -m meridian.auth`, set up a Google Cloud project:
+Before running `python -m ori.auth`, set up a Google Cloud project:
 
 1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
 2. Enable the Gmail API, Google Calendar API, Google Docs API, and Google Drive API.
@@ -88,7 +88,7 @@ Before running `python -m meridian.auth`, set up a Google Cloud project:
 5. Copy the client ID/secret into `.env` as `GOOGLE_OAUTH_CLIENT_ID` and
    `GOOGLE_OAUTH_CLIENT_SECRET`.
 
-Then run `python -m meridian.auth` — a browser window opens asking you to
+Then run `python -m ori.auth` — a browser window opens asking you to
 approve read-only access to Gmail, Calendar, Docs, and Drive. Credentials
 are stored encrypted under `data/auth/`. Running it again reuses the stored
 credentials (refreshing automatically if expired) without re-prompting.
@@ -98,7 +98,7 @@ credentials (refreshing automatically if expired) without re-prompting.
 Once Phase 1 auth is set up, run:
 
 ```
-python -m meridian.ingestion.gmail
+python -m ori.ingestion.gmail
 ```
 
 First run does a full backfill of your mailbox (respecting a deliberately
@@ -121,7 +121,7 @@ sqlite3 data/ingestion/gmail/gmail.db "select count(*) from messages;"
 Once Phase 1 auth is set up, run:
 
 ```
-python -m meridian.ingestion.calendar
+python -m ori.ingestion.calendar
 ```
 
 Syncs only your primary calendar. First run does a full backfill and stores
@@ -145,7 +145,7 @@ sqlite3 data/ingestion/calendar/calendar.db "select count(*) from events;"
 Once Phase 1 auth is set up, run:
 
 ```
-python -m meridian.ingestion.docs
+python -m ori.ingestion.docs
 ```
 
 First run does a full backfill of every Google Doc you can see (via Drive's
@@ -170,10 +170,10 @@ sqlite3 data/ingestion/docs/docs.db "select count(*) from documents;"
 
 ### Phase 5 (Local files ingestion)
 
-No Google auth needed — just set `MERIDIAN_NOTES_FOLDER` in `.env`, then run:
+No Google auth needed — just set `ORI_NOTES_FOLDER` in `.env`, then run:
 
 ```
-python -m meridian.ingestion.local_files
+python -m ori.ingestion.local_files
 ```
 
 Unlike Phases 2-4, this isn't a backfill/incremental-sync split — listing a
@@ -224,7 +224,7 @@ prompt once before sending it to Claude and untokenizes the response
 once. You can still try the round trip manually on any text:
 
 ```
-python -m meridian.redaction "Contact John Smith at john@example.com, my address is 123 Main St"
+python -m ori.redaction "Contact John Smith at john@example.com, my address is 123 Main St"
 ```
 
 Every call logs entity type + count to the structured log (never the
@@ -236,7 +236,7 @@ No Google auth needed — operates entirely on already-ingested local data.
 Run after any of Phases 2-5 have ingested something:
 
 ```
-python -m meridian.indexing
+python -m ori.indexing
 ```
 
 Reads each source's ingestion database directly (read-only), splits each
@@ -267,7 +267,7 @@ No Google auth needed — operates entirely on the local index built by
 Phase 7. Run:
 
 ```
-python -m meridian.query "what's on my calendar this week"
+python -m ori.query "what's on my calendar this week"
 ```
 
 **This works fully without an `LLM_API_KEY`** — it retrieves the most
@@ -304,10 +304,10 @@ via one extra small Claude call (skipped entirely on the thread's first
 question, since there's nothing yet to rewrite against):
 
 ```
-python -m meridian.query "what's on my calendar this month" --thread work
-python -m meridian.query "what about next month" --thread work
-python -m meridian.conversation list work
-python -m meridian.conversation clear work
+python -m ori.query "what's on my calendar this month" --thread work
+python -m ori.query "what about next month" --thread work
+python -m ori.conversation list work
+python -m ori.conversation clear work
 ```
 
 History is a simple fixed window (last 10 turns) — not a summarization
@@ -351,7 +351,7 @@ flights, but your last one was on May 1st") instead of just abstaining.
 
 A test that makes a real (paid) Claude API call exists
 (`tests/query/test_answer_real.py`) but only runs if you explicitly set
-`MERIDIAN_RUN_LIVE_LLM_TESTS=1` in addition to `LLM_API_KEY` — it's
+`ORI_RUN_LIVE_LLM_TESTS=1` in addition to `LLM_API_KEY` — it's
 skipped by default so the regular test suite never spends real money.
 
 ### Phase 9 (Entity graph)
@@ -361,7 +361,7 @@ ingested/indexed by earlier phases. Run after Phase 7 (indexing) has run
 at least once:
 
 ```
-python -m meridian.entity_graph
+python -m ori.entity_graph
 ```
 
 Answers "who/what is mentioned, and where else does it show up" by
@@ -413,7 +413,7 @@ this."
 This costs a real LLM call per not-yet-linked item, so it's opt-in:
 
 ```
-python -m meridian.entity_graph --link-topics
+python -m ori.entity_graph --link-topics
 ```
 
 Combine with `--source` to scope it (e.g. `--source docs --link-topics`).
@@ -433,9 +433,9 @@ phase's one-shot CLI). Two subcommands, meant to be run as two separate
 invocations — generate now, review later:
 
 ```
-python -m meridian.digest run
-python -m meridian.digest review
-python -m meridian.digest review --approve <run_id>   # or --reject
+python -m ori.digest run
+python -m ori.digest review
+python -m ori.digest review --approve <run_id>   # or --reject
 ```
 
 `run` gathers what's new since the last reviewed digest (recent Gmail
@@ -494,7 +494,7 @@ sqlite3 data/digest/digest.db "select run_id, status, window_start, window_end f
 
 `digest_text` and `sources_text` are encrypted at rest as of Phase 11 - a
 raw `select digest_text ...` will show ciphertext; use
-`python -m meridian.digest review` to see the plaintext digest.
+`python -m ori.digest review` to see the plaintext digest.
 
 Gmail content in the digest is filtered to your Primary inbox - gmail's
 own CATEGORY_PROMOTIONS/SOCIAL/UPDATES/FORUMS labels are excluded
@@ -513,12 +513,12 @@ they're addressed honestly below rather than forced into an enterprise
 shape.
 
 **Audit logging** — a durable, append-only, hash-chained log distinct
-from the regular operational log (`logs/meridian.log`). Every line in
+from the regular operational log (`logs/ori.log`). Every line in
 `logs/audit.log` includes a hash of its own content plus the previous
 line's hash, so any edit or deletion is detectable:
 
 ```
-python -m meridian.security verify-audit
+python -m ori.security verify-audit
 ```
 
 Recorded events: OAuth consent granted / token refreshed (not a silent
@@ -536,8 +536,8 @@ text next to exactly what would be sent to Claude, plus a round-trip
 check confirming the placeholders restore the original exactly:
 
 ```
-python -m meridian.security check-redaction
-python -m meridian.security check-redaction --subject "cancellation"
+python -m ori.security check-redaction
+python -m ori.security check-redaction --subject "cancellation"
 ```
 
 **Encrypted local storage** — extended narrowly to `digest/store.py`'s
@@ -555,7 +555,7 @@ readily reusable to extend this to other stores later if warranted.
 
 Key management was also hardened: `auth/token_store.py`'s encryption key
 (previously a randomly generated file with no passphrase option) can now
-optionally be derived from `MERIDIAN_ENCRYPTION_PASSPHRASE` via PBKDF2 —
+optionally be derived from `ORI_ENCRYPTION_PASSPHRASE` via PBKDF2 —
 zero-config installs see no change, since the fallback is exactly the
 prior random-key behavior.
 
@@ -586,7 +586,7 @@ for a tool with no server and no multi-tenant surface:
 - Anthropic API keys have no in-API scoping mechanism to restrict a key
   to a subset of capabilities (confirmed against Anthropic's own docs) —
   the closest realistic lever is Console-level: create a dedicated
-  Anthropic Workspace for Meridian and set a key expiration (e.g. 90
+  Anthropic Workspace for Ori and set a key expiration (e.g. 90
   days) rather than "Never," rotating manually. This is operator
   configuration, not something this codebase can enforce.
 - The one genuine code deliverable here is the log-scrubbing guard
@@ -595,25 +595,25 @@ for a tool with no server and no multi-tenant surface:
 **Defense-in-depth log scrubbing** — `common/logging.py` now redacts any
 registered secret value from every log line before it's written, so a
 future accidental `logger.info(f"...{api_key}...")` can't leak a real
-key or client secret into `logs/meridian.log`.
+key or client secret into `logs/ori.log`.
 
 One-time manual smoke test, after any of the above changes:
 
 ```
-python -m meridian.auth --force-refresh   # or a fresh consent flow
-python -m meridian.security verify-audit  # confirms a new hash-chained line landed
-python -m meridian.digest run
-python -m meridian.digest review --approve <run_id>
+python -m ori.auth --force-refresh   # or a fresh consent flow
+python -m ori.security verify-audit  # confirms a new hash-chained line landed
+python -m ori.digest run
+python -m ori.digest review --approve <run_id>
 sqlite3 data/digest/digest.db "select digest_text from digest_runs;"  # ciphertext
-python -m meridian.digest review                                     # plaintext
-python -m meridian.security verify-audit  # confirms the digest.reviewed event is intact too
+python -m ori.digest review                                     # plaintext
+python -m ori.security verify-audit  # confirms the digest.reviewed event is intact too
 ```
 
 ### Phase 12 (Tests / eval harness)
 
 A regression harness for the retrieval pipeline built in Phase 8, living
-under `tests/eval/` (not a new `src/meridian/` module — `tests/` isn't
-packaged for install, so there's no `python -m meridian.tests` CLI to
+under `tests/eval/` (not a new `src/ori/` module — `tests/` isn't
+packaged for install, so there's no `python -m ori.tests` CLI to
 extend; it runs the same way as every other test, via plain `pytest`).
 
 `tests/eval/golden_dataset.py` defines a small synthetic corpus (18
@@ -632,7 +632,7 @@ Two eval tests consume that dataset:
   question actually causes an abstain.
 - `tests/eval/test_answer_eval_real.py` — opt-in, gated exactly like
   `tests/query/test_answer_real.py` (`LLM_API_KEY` +
-  `MERIDIAN_RUN_LIVE_LLM_TESTS=1`, skipped otherwise). Runs a bounded
+  `ORI_RUN_LIVE_LLM_TESTS=1`, skipped otherwise). Runs a bounded
   subset of the golden questions through the real embedder, cross-encoder
   reranker, and Claude, and asserts every `[N]` citation in the generated
   answer actually refers to a retrieved source — the concrete check
@@ -647,7 +647,7 @@ pytest
 Run the real one (costs a small amount of real API usage):
 
 ```
-LLM_API_KEY=<key> MERIDIAN_RUN_LIVE_LLM_TESTS=1 pytest tests/eval/test_answer_eval_real.py -v
+LLM_API_KEY=<key> ORI_RUN_LIVE_LLM_TESTS=1 pytest tests/eval/test_answer_eval_real.py -v
 ```
 
 ## Scheduling (auto-sync, nightly digest & calendar notifications)
@@ -664,7 +664,7 @@ installs three macOS `launchd` agents:
 
 - **Full sync every 10 minutes** — runs Gmail, Calendar, Docs, and
   local-files ingestion (local-files skips itself gracefully if
-  `MERIDIAN_NOTES_FOLDER` isn't set, rather than erroring the whole job),
+  `ORI_NOTES_FOLDER` isn't set, rather than erroring the whole job),
   then reindexes everything incrementally, so anything new is actually
   queryable within minutes, not just downloaded.
 - **Nightly digest** — fires once daily at 8am by default
@@ -689,7 +689,7 @@ Safe to re-run `install_launchd.sh` any time (e.g. after changing
 already-installed job, and cleans up the older Gmail-only job name if
 you'd installed that before every source was covered. Logs land in
 `logs/launchd-autosync.log`, `logs/launchd-digest.log`, and
-`logs/launchd-calendarnotify.log`, separate from Meridian's own
+`logs/launchd-calendarnotify.log`, separate from Ori's own
 structured log.
 
 Remove all three jobs with:
@@ -709,12 +709,12 @@ network calls beyond the account-email lookup gmail sync already does.
 wasn't from you and it's been quiet for a while:
 
 ```
-python -m meridian.inbox_intelligence stale-threads
-python -m meridian.inbox_intelligence stale-threads --min-days 5
+python -m ori.inbox_intelligence stale-threads
+python -m ori.inbox_intelligence stale-threads --min-days 5
 ```
 
 Needs your account's own email address to know whose "move" it is - this
-is captured automatically the next time `python -m meridian.ingestion.gmail`
+is captured automatically the next time `python -m ori.ingestion.gmail`
 runs (whether a fresh backfill or an incremental sync), no separate setup
 step. If you see "Account email not captured yet," just run the gmail sync
 once first.
@@ -726,9 +726,9 @@ real Claude calls (redacted first, audit-logged, same as `query`/`digest`)
 so it's a separate opt-in step, bounded by `--limit`:
 
 ```
-python -m meridian.inbox_intelligence scan-commitments --limit 25
-python -m meridian.inbox_intelligence commitments
-python -m meridian.inbox_intelligence resolve-commitment <commitment_id>
+python -m ori.inbox_intelligence scan-commitments --limit 25
+python -m ori.inbox_intelligence commitments
+python -m ori.inbox_intelligence resolve-commitment <commitment_id>
 ```
 
 `scan-commitments` only looks at messages it hasn't scanned before
@@ -759,9 +759,9 @@ calendar-write path anywhere in this project to book it with even if it
 wanted to:
 
 ```
-python -m meridian.reminders add "meet with Nick"
-python -m meridian.reminders list
-python -m meridian.reminders dismiss <reminder_id>
+python -m ori.reminders add "meet with Nick"
+python -m ori.reminders list
+python -m ori.reminders dismiss <reminder_id>
 ```
 
 **Reply drafting** - drafts a reply to a specific message in your own
@@ -774,27 +774,27 @@ step that doesn't exist yet, pending a new Google OAuth scope this
 project doesn't have and hasn't been given (see `BACKLOG.md` #11):
 
 ```
-python -m meridian.replies draft <message_id>
-python -m meridian.replies list
-python -m meridian.replies show <draft_id>
-python -m meridian.replies edit <draft_id> "revised text"
-python -m meridian.replies approve <draft_id>   # or reject
+python -m ori.replies draft <message_id>
+python -m ori.replies list
+python -m ori.replies show <draft_id>
+python -m ori.replies edit <draft_id> "revised text"
+python -m ori.replies approve <draft_id>   # or reject
 ```
 
 ### Talking to it in plain language
 
 The commands above still exist, but you don't need to know them - `python
--m meridian.query "<anything>"` routes your question to the right place
+-m ori.query "<anything>"` routes your question to the right place
 automatically:
 
 ```
-python -m meridian.query "hey any thread needs my approval"
-python -m meridian.query "what commitments are open"
-python -m meridian.query "mark the laptop drop-off commitment as done"
-python -m meridian.query "when did I fly to London"
-python -m meridian.query "summarize my recent emails"
-python -m meridian.query "remind me to meet with Nick"
-python -m meridian.query "draft a reply to Alice's email"
+python -m ori.query "hey any thread needs my approval"
+python -m ori.query "what commitments are open"
+python -m ori.query "mark the laptop drop-off commitment as done"
+python -m ori.query "when did I fly to London"
+python -m ori.query "summarize my recent emails"
+python -m ori.query "remind me to meet with Nick"
+python -m ori.query "draft a reply to Alice's email"
 ```
 
 One cheap Claude call classifies the message into one of seven categories

@@ -1,6 +1,6 @@
 from datetime import date
 
-from meridian.inbox_intelligence.deadlines import resolve_deadline_phrase
+from ori.inbox_intelligence.deadlines import resolve_deadline_phrase
 
 # 2026-09-02 is a Wednesday
 _ANCHOR = date(2026, 9, 2)

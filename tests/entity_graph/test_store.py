@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from meridian.entity_graph.store import EntityGraphStore
+from ori.entity_graph.store import EntityGraphStore
 
 
 def test_upsert_entity_creates_new_entity(tmp_path):
