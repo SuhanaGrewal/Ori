@@ -92,6 +92,16 @@ class WebUsersStore:
         self.add_audit_event(user_id, "account_created", f"Profile created for {name}")
         return user_id
 
+    def get_user_id_by_email(self, email: str) -> str | None:
+        """looks up an existing account by its Google email - the piece
+        "Sign in with Google" needs that account creation alone never did:
+        a returning user must land back on the same user_id (and thus the
+        same data_dir/conversation history), not a fresh blank account,
+        even though email is only ever set after the fact via
+        complete_google_consent() rather than at creation time."""
+        row = self._conn.execute("SELECT user_id FROM users WHERE email = ?", (email,)).fetchone()
+        return row["user_id"] if row else None
+
     def get_user_profile(self, user_id: str) -> dict[str, Any] | None:
         row = self._conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
         if row is None:

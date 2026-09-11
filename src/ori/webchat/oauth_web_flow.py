@@ -10,11 +10,22 @@ from ori.auth.scopes import SCOPES
 # openid + userinfo.email so the callback can learn the real Google
 # account email address - the existing CLI flow (auth/oauth_flow.py)
 # never needed this, since there's only ever one local user asking "who
-# am I." Kept as a separate constant rather than editing SCOPES itself,
-# since the CLI flow's own scope list shouldn't grow for a web-only need.
-WEB_FLOW_SCOPES = [*SCOPES, "openid", "https://www.googleapis.com/auth/userinfo.email"]
+# am I." userinfo.profile additionally gets a display name, used only by
+# the "Sign in with Google" login flow to name a brand-new account (the
+# existing settings-page "connect Google to my account" flow already has
+# a name from registration and doesn't need it). Kept as a separate
+# constant rather than editing SCOPES itself, since the CLI flow's own
+# scope list shouldn't grow for a web-only need.
+WEB_FLOW_SCOPES = [
+    *SCOPES,
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
 
+# v2, not v3: v3's response has no `name` field, only v2 does.
 _USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+_USERINFO_V2_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 
 def build_web_flow(client_id: str, client_secret: str, redirect_uri: str) -> Flow:
@@ -70,3 +81,19 @@ def fetch_google_email(credentials: Credentials) -> str | None:
     if response.status_code != 200:
         return None
     return response.json().get("email")
+
+
+def fetch_google_profile(credentials: Credentials) -> dict[str, str] | None:
+    """email + display name, for the login flow's account-lookup/creation
+    (unlike fetch_google_email, a failure here must not fall back to a
+    placeholder - a shared placeholder identity would let unrelated
+    Google accounts collide into the same login)."""
+    session = AuthorizedSession(credentials)
+    response = session.get(_USERINFO_V2_URL, timeout=10)
+    if response.status_code != 200:
+        return None
+    body = response.json()
+    email = body.get("email")
+    if not email:
+        return None
+    return {"email": email, "name": body.get("name") or email.split("@")[0]}

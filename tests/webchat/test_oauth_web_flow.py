@@ -27,6 +27,17 @@ def test_get_authorization_url_requests_readonly_and_email_scopes():
     assert "userinfo.email" in url
 
 
+def test_get_authorization_url_requests_profile_scope():
+    # needed by the "Sign in with Google" login flow to name a brand-new
+    # account from the Google profile's display name - see
+    # fetch_google_profile.
+    flow = build_web_flow("client-id", "client-secret", "http://localhost:8000/api/auth/google/callback")
+
+    url = get_authorization_url(flow, state="user_abc123")
+
+    assert "userinfo.profile" in url
+
+
 def test_get_authorization_url_omits_pkce_code_challenge():
     # google-auth-oauthlib auto-generates a PKCE code_verifier by default,
     # but the callback exchanges the code on a brand-new Flow instance

@@ -39,6 +39,7 @@ from ori.webchat.oauth_web_flow import (
     build_web_flow,
     exchange_code_for_credentials,
     fetch_google_email,
+    fetch_google_profile,
     get_authorization_url,
 )
 from ori.webchat.scopes import revoked_sources
@@ -61,6 +62,15 @@ from ori.webchat.users_store import WebUsersStore
 FRONTEND_ORIGIN = os.environ.get("ORI_FRONTEND_ORIGIN", "http://localhost:3457")
 BACKEND_BASE_URL = os.environ.get("ORI_BACKEND_BASE_URL", "http://localhost:8420")
 GOOGLE_CALLBACK_PATH = "/api/auth/google/callback"
+# separate path (and thus a second redirect URI to register in Google
+# Cloud Console) from GOOGLE_CALLBACK_PATH above, rather than overloading
+# one callback with two meanings via `state` - google_callback's state
+# *is* a trusted user_id (the "connect Google to my already-registered
+# account" settings flow), whereas this path's state is just an unused
+# nonce, since "Sign in with Google" doesn't have a user_id yet when it
+# starts. Conflating the two would mean a forged state on one path could
+# be misread as the other's meaning.
+GOOGLE_LOGIN_CALLBACK_PATH = "/api/auth/google/login/callback"
 
 _config = load_config()
 _users = WebUsersStore(_config.data_dir / "webchat_users.db")
@@ -160,6 +170,60 @@ def google_callback(
     background_tasks.add_task(
         run_initial_sync, user_id, config=_config, users=_users, embedder=_embedder, logger=_logger
     )
+
+    session_token = _users.create_session(user_id)
+    return RedirectResponse(f"{FRONTEND_ORIGIN}/dashboard?session={session_token}")
+
+
+@app.get("/api/auth/google/login")
+def google_login() -> RedirectResponse:
+    """entry point for "Sign in with Google" - unlike google_start above,
+    this needs no user_id (there isn't one yet); state is just a nonce,
+    not a carried identity, so it's fine that it's never verified against
+    anything (matches this app's existing single-operator security
+    posture - see get_authorization_url's docstring)."""
+    flow = build_web_flow(
+        _config.google_client_id, _config.google_client_secret, BACKEND_BASE_URL + GOOGLE_LOGIN_CALLBACK_PATH
+    )
+    url = get_authorization_url(flow, state=uuid.uuid4().hex)
+    return RedirectResponse(url)
+
+
+@app.get(GOOGLE_LOGIN_CALLBACK_PATH)
+def google_login_callback(background_tasks: BackgroundTasks, code: str = Query(...)) -> RedirectResponse:
+    flow = build_web_flow(
+        _config.google_client_id, _config.google_client_secret, BACKEND_BASE_URL + GOOGLE_LOGIN_CALLBACK_PATH
+    )
+    credentials = exchange_code_for_credentials(flow, code=code)
+    profile = fetch_google_profile(credentials)
+    if profile is None:
+        # unlike google_callback's connect flow, there's no already-known
+        # user_id to fall back to here - a placeholder email would let
+        # unrelated Google accounts collide into one login, so this must
+        # fail the login rather than silently proceed.
+        return RedirectResponse(f"{FRONTEND_ORIGIN}/login?error=google_profile_failed")
+    email = profile["email"]
+
+    existing_user_id = _users.get_user_id_by_email(email)
+    is_new_user = existing_user_id is None
+    user_id = existing_user_id or _users.create_user(profile["name"], None)
+
+    per_user_config = config_for_user(_config, user_id)
+    per_user_config.auth_dir.mkdir(parents=True, exist_ok=True)
+    EncryptedTokenStore(per_user_config.auth_dir).save(credentials)
+
+    granted_readonly = [scope for scope in (credentials.scopes or []) if scope in READONLY_SCOPES]
+    _users.complete_google_consent(user_id, email=email, granted_scopes=granted_readonly)
+
+    if is_new_user:
+        # only for a brand-new account - a returning user's data already
+        # exists and stays current via the existing scheduled auto-sync,
+        # so re-running a full backfill on every login would be pure
+        # wasted work (and, per this project's incremental principle,
+        # exactly the kind of unchanged-data reprocessing to avoid).
+        background_tasks.add_task(
+            run_initial_sync, user_id, config=_config, users=_users, embedder=_embedder, logger=_logger
+        )
 
     session_token = _users.create_session(user_id)
     return RedirectResponse(f"{FRONTEND_ORIGIN}/dashboard?session={session_token}")

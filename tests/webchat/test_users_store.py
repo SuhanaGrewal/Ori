@@ -170,6 +170,27 @@ def test_migrates_a_pre_existing_database_missing_sync_status_column(tmp_path):
     assert store.get_user_profile("user_old")["syncStatus"] == "not_started"
 
 
+def test_get_user_id_by_email_finds_a_connected_user(tmp_path):
+    store = WebUsersStore(tmp_path / "users.db")
+    user_id = store.create_user("Jordan Kim", None)
+    store.complete_google_consent(user_id, email="jordan@gmail.com", granted_scopes=["gmail.readonly"])
+
+    assert store.get_user_id_by_email("jordan@gmail.com") == user_id
+
+
+def test_get_user_id_by_email_unknown_email_returns_none(tmp_path):
+    store = WebUsersStore(tmp_path / "users.db")
+
+    assert store.get_user_id_by_email("nobody@gmail.com") is None
+
+
+def test_get_user_id_by_email_ignores_a_user_with_no_email_yet(tmp_path):
+    store = WebUsersStore(tmp_path / "users.db")
+    store.create_user("Jordan Kim", None)  # never connected Google - email is NULL
+
+    assert store.get_user_id_by_email("jordan@gmail.com") is None
+
+
 def test_users_are_isolated_from_each_other(tmp_path):
     store = WebUsersStore(tmp_path / "users.db")
     alice_id = store.create_user("Alice", "1990-01-01")
