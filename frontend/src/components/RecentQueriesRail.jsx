@@ -67,7 +67,7 @@ export default function RecentQueriesRail({ cards, activeCardId, onSelectCard, o
             transition={{ duration: 0.18, ease: "easeOut" }}
             style={{
               position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 51,
-              width: 270, maxHeight: "min(70vh, 520px)", overflowY: "auto", background: PAPER_WARM,
+              width: 270, maxHeight: "min(70vh, 520px)", overflowY: "auto", background: "#FFFFFF",
               border: `1px solid ${LINE}`, borderRadius: 14,
               boxShadow: "0 20px 40px -14px rgba(27,27,24,0.28)", padding: "16px 14px",
             }}
