@@ -20,8 +20,8 @@ export default function RecentQueriesRail({ cards, activeCardId, onSelectCard, o
   return (
     <div
       style={{
-        position: "fixed", top: 90, left: leftOffset, bottom: 90, zIndex: 50,
-        display: "flex", alignItems: "flex-start", transition: "left 0.22s ease-out",
+        position: "fixed", top: 90, left: leftOffset, zIndex: 50,
+        transition: "left 0.22s ease-out",
       }}
     >
       <button
@@ -39,18 +39,37 @@ export default function RecentQueriesRail({ cards, activeCardId, onSelectCard, o
         Recent
       </button>
 
+      {/* dims + click-catches the rest of the page while open, instead of
+          the panel just floating on top of whatever card is behind it -
+          also opens straight DOWN from the button now, not sideways over
+          the main chat column. */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(27,27,24,0.15)", zIndex: 49 }}
+          />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {open && (
           <motion.div
             key="panel"
-            initial={{ opacity: 0, x: -16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -16 }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
             style={{
-              width: 270, maxHeight: "100%", overflowY: "auto", background: PAPER_WARM,
-              border: `1px solid ${LINE}`, borderLeft: "none", borderRadius: "0 12px 12px 0",
-              boxShadow: "12px 0 30px -12px rgba(27,27,24,0.18)", padding: "16px 14px",
+              position: "absolute", top: "calc(100% + 8px)", left: 0,
+              width: 270, maxHeight: "min(70vh, 520px)", overflowY: "auto", background: PAPER_WARM,
+              border: `1px solid ${LINE}`, borderRadius: 14,
+              boxShadow: "0 20px 40px -14px rgba(27,27,24,0.28)", padding: "16px 14px",
             }}
           >
             <button

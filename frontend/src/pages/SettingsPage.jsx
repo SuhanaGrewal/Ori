@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { AVAILABLE_SCOPES, getCurrentUser, updateProfile, updateScopes } from "../auth/realAuth";
+import { AVAILABLE_SCOPES, getCurrentUser, updateProfile } from "../auth/realAuth";
 import { BODY, MONO, SERIF, FONT_IMPORT, INK, INK_SOFT, ACCENT, LINE, PAPER_WARM, GRAIN } from "../theme";
+
+const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
 
 const inputStyle = {
   fontFamily: BODY, fontSize: 14, color: INK, background: "#FFFFFF",
@@ -20,22 +22,13 @@ export default function SettingsPage() {
   const [user, setUser] = useState(getCurrentUser());
   const [name, setName] = useState(user.name);
   const [dob, setDob] = useState(user.dob);
-  const [scopes, setScopes] = useState(user.scopes);
   const [savedNote, setSavedNote] = useState("");
-
-  const toggleScope = (id) => {
-    setScopes((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
-  };
 
   const saveProfile = async (e) => {
     e.preventDefault();
     setUser(await updateProfile(user.id, { name, dob }));
     setSavedNote("Profile saved.");
     setTimeout(() => setSavedNote(""), 2000);
-  };
-
-  const saveScopes = async () => {
-    setUser(await updateScopes(user.id, scopes));
   };
 
   return (
@@ -81,23 +74,46 @@ export default function SettingsPage() {
 
           <div style={{ ...cardStyle, marginBottom: 0 }}>
             <h2 style={sectionTitle}>Connected scopes</h2>
+            <p style={{ fontFamily: BODY, fontSize: 12, color: INK_SOFT, margin: "-8px 0 16px", lineHeight: 1.5 }}>
+              What Google actually granted when you connected your account. This
+              app can't change that on its own — Google requires you to grant or
+              revoke access from your own Google Account, not from a checkbox
+              here.
+            </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-              {AVAILABLE_SCOPES.map((scope) => (
-                <label key={scope.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${LINE}`, borderRadius: 10, cursor: "pointer" }}>
-                  <input type="checkbox" checked={scopes.includes(scope.id)} onChange={() => toggleScope(scope.id)} style={{ accentColor: ACCENT, width: 15, height: 15 }} />
-                  <div>
-                    <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 600, color: INK }}>{scope.label}</div>
-                    <div style={{ fontFamily: BODY, fontSize: 11.5, color: INK_SOFT }}>{scope.detail}</div>
+              {AVAILABLE_SCOPES.map((scope) => {
+                const granted = user.scopes.includes(scope.id);
+                return (
+                  <div key={scope.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${LINE}`, borderRadius: 10 }}>
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                        background: granted ? ACCENT : LINE,
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 600, color: INK }}>{scope.label}</div>
+                      <div style={{ fontFamily: BODY, fontSize: 11.5, color: INK_SOFT }}>{scope.detail}</div>
+                    </div>
+                    <span style={{ fontFamily: BODY, fontSize: 11, fontWeight: 600, color: granted ? ACCENT : INK_SOFT }}>
+                      {granted ? "Granted" : "Not granted"}
+                    </span>
                   </div>
-                </label>
-              ))}
+                );
+              })}
             </div>
-            <button
-              onClick={saveScopes}
-              style={{ fontFamily: BODY, fontWeight: 600, fontSize: 13, color: "#FBF9F4", background: ACCENT, border: "none", borderRadius: 8, padding: "9px 16px", cursor: "pointer" }}
+            <a
+              href={GOOGLE_PERMISSIONS_URL}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-block", fontFamily: BODY, fontWeight: 600, fontSize: 13, color: "#FBF9F4",
+                background: ACCENT, borderRadius: 8, padding: "9px 16px", textDecoration: "none",
+              }}
             >
-              Update scopes
-            </button>
+              Manage access in your Google Account →
+            </a>
           </div>
         </div>
       </div>

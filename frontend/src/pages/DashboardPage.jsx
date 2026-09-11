@@ -13,8 +13,24 @@ import { BODY, MONO, SERIF, FONT_IMPORT, INK, INK_SOFT, LINE, PAPER_WARM, GRAIN 
 
 // one-click starting points on the fresh landing view, in place of a
 // static "try asking..." hint - real questions the ask bar already
-// answers, not decorative.
-const QUICK_ACTIONS = ["What's due this week", "Clear up my calendar tomorrow", "Draft an email"];
+// answers, not decorative. "What's on my calendar tomorrow" (not "clear
+// up my calendar tomorrow") deliberately - the router has no actual
+// "review my calendar and propose what to cancel" capability yet, only
+// fact lookups (GENERAL) and conflict detection (CALENDAR_CONFLICTS); an
+// imperative "clear up..." phrasing gets misread as REMINDER intake
+// instead, which proposes an unrelated free slot and makes no sense as
+// a reply. This button should ask something the backend actually
+// supports well, not the aspirational phrasing.
+const QUICK_ACTIONS = ["What's due this week", "What's on my calendar tomorrow", "Draft an email"];
+
+// "Draft an email" is deliberately not sent to the backend at all - a
+// bare instruction with no email/thread named gives the draft-reply
+// pipeline (which drafts a reply to one specific existing thread) nothing
+// to work with, so asking the obvious clarifying question locally is more
+// honest than shipping a request that can't be satisfied.
+const DRAFT_EMAIL_CLARIFYING_ANSWER =
+  "What would you like me to draft — a reply to an existing email, or a fresh one? " +
+  "If it's a reply, tell me who/which thread and I'll pull it up.";
 
 // A CEO doesn't want a growing chat log, and doesn't want yesterday's
 // questions cluttering the screen the moment they open the app either -
@@ -66,6 +82,11 @@ export default function DashboardPage() {
   // stays completely unaffected.
   const askAndAttach = async (filed, questionText) => {
     setPendingAsk(filed);
+    if (questionText === "Draft an email") {
+      attachAnswer(user.id, filed, { answer: DRAFT_EMAIL_CLARIFYING_ANSWER, citations: [] });
+      setPendingAsk(null);
+      return;
+    }
     try {
       // a title is only generated for a brand-new top-level card
       // (filed.followUpId === null) - fileNewQuestion() itself may still

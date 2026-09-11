@@ -179,9 +179,28 @@ export default function CraneDigestButton({ userId }) {
         )}
       </button>
 
+      {/* dims + click-catches the rest of the page while open, so the
+          panel reads as a deliberate overlay instead of just floating on
+          top of the chat behind it (click-away already closes it via
+          wrapRef above; this adds the visual separation to match). */}
       <AnimatePresence>
         {open && (
           <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(27,27,24,0.15)", zIndex: 190 }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="panel"
             initial={{ opacity: 0, y: -8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}

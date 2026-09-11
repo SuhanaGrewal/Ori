@@ -67,10 +67,9 @@ def _gmail_messages_for_digest(gmail_store: Any, since: str) -> tuple[list[Any],
 
 def _gmail_item(row: Any) -> GatheredItem:
     sender_name = _clean_sender_name(row["sender"])
-    when = _friendly_timestamp(row["sent_at"])
     return {
         "source": "gmail",
-        "label": f"Email from {sender_name}" + (f", {when}" if when else "") + f": '{row['subject']}'",
+        "label": f"Email from {sender_name}: '{row['subject']}'",
         "detail": (row["body_text"] or "")[:_DETAIL_CHARS],
     }
 
