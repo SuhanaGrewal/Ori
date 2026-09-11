@@ -9,7 +9,12 @@ import { getCurrentUser, hydrateSession } from "../auth/realAuth";
 import { getAnswer } from "../api/realApi";
 import { fileNewQuestion, fileFollowUpOnCard, attachAnswer, getFocusedCard, getAllCardsFlat, searchCards } from "../lib/cardStore";
 import { getGreeting } from "../lib/greeting";
-import { BODY, MONO, SERIF, FONT_IMPORT, INK, INK_SOFT, PAPER_WARM, GRAIN } from "../theme";
+import { BODY, MONO, SERIF, FONT_IMPORT, INK, INK_SOFT, LINE, PAPER_WARM, GRAIN } from "../theme";
+
+// one-click starting points on the fresh landing view, in place of a
+// static "try asking..." hint - real questions the ask bar already
+// answers, not decorative.
+const QUICK_ACTIONS = ["What's due this week", "Clear up my calendar tomorrow", "Draft an email"];
 
 // A CEO doesn't want a growing chat log, and doesn't want yesterday's
 // questions cluttering the screen the moment they open the app either -
@@ -79,9 +84,10 @@ export default function DashboardPage() {
     setPendingAsk(null);
   };
 
-  const handleAsk = async (e) => {
-    e.preventDefault();
-    const q = question.trim();
+  // shared by the search bar's own submit and the landing view's quick-
+  // action buttons (see QUICK_ACTIONS below) - both just need "file and
+  // answer this exact text," neither should have to fake a form event.
+  const submitQuestion = async (q) => {
     if (!q || pendingAsk) return;
     setQuestion("");
     setRailSearchText("");
@@ -95,6 +101,11 @@ export default function DashboardPage() {
 
     await askAndAttach(filed, q);
     refreshFocusedCard(filed.cardId);
+  };
+
+  const handleAsk = (e) => {
+    e.preventDefault();
+    submitQuestion(question.trim());
   };
 
   // the explicit "+ Follow up on this" control on the focused card -
@@ -203,8 +214,22 @@ export default function DashboardPage() {
               {greeting}
             </h1>
             <AskSearchBar value={question} onChange={setQuestion} onSubmit={handleAsk} disabled={!!pendingAsk} />
-            <div style={{ fontFamily: BODY, fontSize: 13, color: INK_SOFT, marginTop: 16 }}>
-              Try "what's due this week?" or "summarize my last call with Jordan."
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 16 }}>
+              {QUICK_ACTIONS.map((label) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => submitQuestion(label)}
+                  disabled={!!pendingAsk}
+                  style={{
+                    fontFamily: BODY, fontSize: 12.5, color: INK_SOFT, background: "#FFFFFF",
+                    border: `1px solid ${LINE}`, borderRadius: 999, padding: "7px 14px",
+                    cursor: pendingAsk ? "default" : "pointer", opacity: pendingAsk ? 0.6 : 1,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

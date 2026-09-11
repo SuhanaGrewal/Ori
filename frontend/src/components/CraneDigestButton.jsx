@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import craneLogo from "../assets/crane-logo-slate.svg";
 import { getNightlyDigest, hasUnseenDigest, markDigestSeen } from "../api/realApi";
+import { getGreeting } from "../lib/greeting";
 import { BODY, SERIF, INK, INK_SOFT, ACCENT, ACCENT_SOFT, LINE } from "../theme";
 
 function pad(n) {
@@ -111,6 +112,7 @@ export default function CraneDigestButton({ userId }) {
   const [unseen, setUnseen] = useState(false);
   const [digest, setDigest] = useState(null);
   const [range, setRange] = useState(defaultWindow);
+  const [greeting] = useState(() => getGreeting());
   const [pickerOpen, setPickerOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -191,12 +193,12 @@ export default function CraneDigestButton({ userId }) {
             }}
           >
             <div style={{ marginBottom: 3 }}>
-              <span style={{ fontFamily: SERIF, fontSize: 18, color: INK }}>Good morning</span>
+              <span style={{ fontFamily: SERIF, fontSize: 18, color: INK }}>{greeting}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
               <span style={{ fontFamily: BODY, fontSize: 11, color: INK_SOFT }}>
-                {digest && digest.windowStart
-                  ? `Showing since ${formatWindowLabel(digest.windowStart)}`
+                {digest && digest.windowStart && digest.windowEnd
+                  ? `${formatWindowLabel(digest.windowStart)} – ${formatWindowLabel(digest.windowEnd)}`
                   : "Loading…"}
               </span>
               <button
@@ -246,7 +248,7 @@ export default function CraneDigestButton({ userId }) {
                 <Section title="New so far">
                   <BulletList items={digest.newSoFar} empty="Nothing new yet." />
                 </Section>
-                <Section title="Events from last night">
+                <Section title="Events in this window">
                   <EventList items={digest.events} empty="No emails or events in this window." />
                 </Section>
                 <Section title="Things to do">

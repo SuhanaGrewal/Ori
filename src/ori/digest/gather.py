@@ -2,29 +2,62 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
+from email.utils import parseaddr
 from typing import Any
 
 from ori.digest.state import GatheredItem
-from ori.inbox_intelligence.gmail_filters import NON_ACTIONABLE_CATEGORIES
+from ori.inbox_intelligence.gmail_filters import NON_ACTIONABLE_CATEGORIES, looks_like_newsletter
 
 _DETAIL_CHARS = 500
 
 
+def _clean_sender_name(sender: str | None) -> str:
+    """"Railway <hello@notify.railway.app>" -> "Railway" - the digest
+    should read like a person telling you who emailed, not paste a raw
+    From header. Falls back to the address's local-part (still better
+    than the full address+domain) only when there's genuinely no display
+    name to use."""
+    display_name, email_addr = parseaddr(sender or "")
+    if display_name:
+        return display_name
+    if email_addr:
+        return email_addr.split("@")[0]
+    return sender or "Unknown sender"
+
+
+def _friendly_timestamp(iso_str: str | None) -> str:
+    """"2026-09-11T23:15:00+00:00" -> "Thu 7:32 PM" - the digest (and the
+    LLM summarizing it) should never have to work with raw ISO strings.
+    Falls back to the raw string only if it genuinely isn't parseable,
+    rather than silently dropping the timestamp entirely."""
+    if not iso_str:
+        return ""
+    try:
+        return datetime.fromisoformat(iso_str).strftime("%a %-I:%M %p")
+    except ValueError:
+        return iso_str
+
+
 def _gmail_messages_for_digest(gmail_store: Any, since: str) -> tuple[list[Any], int]:
     """excludes promotional/social/updates/forums mail (gmail's own
-    category labels) - a digest should reflect your primary inbox, not
-    surface newsletters. What's left is sorted so gmail's own
-    IMPORTANT-labeled mail comes first - that's a real priority signal,
-    not just "arrived most recently." The sort is stable, so chronological
-    order is preserved within the important/not-important groups. Also
-    returns how many messages were excluded, so the caller can still
-    mention the total volume ("14 new emails, mostly newsletters")
-    without spending context on their full bodies."""
+    category labels) AND anything that looks like a newsletter by its own
+    content (an unsubscribe link) even when Gmail's classifier left it in
+    Primary - a personal-feeling Substack-style send from an individual's
+    name is still a newsletter, not something waiting on a reply. A
+    digest should reflect your primary inbox, not surface either kind.
+    What's left is sorted so gmail's own IMPORTANT-labeled mail comes
+    first - that's a real priority signal, not just "arrived most
+    recently." The sort is stable, so chronological order is preserved
+    within the important/not-important groups. Also returns how many
+    messages were excluded, so the caller can still mention the total
+    volume ("14 new emails, mostly newsletters") without spending context
+    on their full bodies."""
     candidates = []
     excluded_count = 0
     for row in gmail_store.list_messages_since(since):
         labels = set(json.loads(row["label_ids"] or "[]"))
-        if labels & NON_ACTIONABLE_CATEGORIES:
+        if labels & NON_ACTIONABLE_CATEGORIES or looks_like_newsletter(row["body_text"]):
             excluded_count += 1
             continue
         candidates.append(("IMPORTANT" not in labels, row))
@@ -33,9 +66,11 @@ def _gmail_messages_for_digest(gmail_store: Any, since: str) -> tuple[list[Any],
 
 
 def _gmail_item(row: Any) -> GatheredItem:
+    sender_name = _clean_sender_name(row["sender"])
+    when = _friendly_timestamp(row["sent_at"])
     return {
         "source": "gmail",
-        "label": f"Gmail email from {row['sender']}, sent {row['sent_at']}, subject: '{row['subject']}'",
+        "label": f"Email from {sender_name}" + (f", {when}" if when else "") + f": '{row['subject']}'",
         "detail": (row["body_text"] or "")[:_DETAIL_CHARS],
     }
 
@@ -43,7 +78,7 @@ def _gmail_item(row: Any) -> GatheredItem:
 def _calendar_item(row: Any) -> GatheredItem:
     return {
         "source": "calendar",
-        "label": f"Calendar event '{row['summary']}' starting {row['start_at']}",
+        "label": f"Calendar event '{row['summary']}' starting {_friendly_timestamp(row['start_at'])}",
         "detail": (row["description"] or "")[:_DETAIL_CHARS],
     }
 
@@ -51,7 +86,7 @@ def _calendar_item(row: Any) -> GatheredItem:
 def _docs_item(row: Any) -> GatheredItem:
     return {
         "source": "docs",
-        "label": f"Google Doc titled '{row['title']}', modified {row['modified_time']}",
+        "label": f"Google Doc titled '{row['title']}', modified {_friendly_timestamp(row['modified_time'])}",
         "detail": (row["content_text"] or "")[:_DETAIL_CHARS],
     }
 
@@ -59,7 +94,7 @@ def _docs_item(row: Any) -> GatheredItem:
 def _notes_item(row: Any) -> GatheredItem:
     return {
         "source": "local_files",
-        "label": f"Note file at {row['path']}, updated {row['updated_at']}",
+        "label": f"Note file at {row['path']}, updated {_friendly_timestamp(row['updated_at'])}",
         "detail": (row["content_text"] or "")[:_DETAIL_CHARS],
     }
 

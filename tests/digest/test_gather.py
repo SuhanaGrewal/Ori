@@ -16,11 +16,15 @@ _NOW = "2024-06-10T00:00:00Z"
 _LOOKAHEAD_END = "2024-06-17T00:00:00Z"
 
 
-def _message(message_id="msg-1", subject="Budget", sent_at="2024-06-05T00:00:00Z", label_ids=None) -> ParsedMessage:
+def _message(
+    message_id="msg-1", subject="Budget", sent_at="2024-06-05T00:00:00Z", label_ids=None,
+    sender="Jane Doe <jane@example.com>", body_text=None,
+) -> ParsedMessage:
     return ParsedMessage(
-        message_id=message_id, thread_id=f"t-{message_id}", subject=subject, sender="jane@example.com",
+        message_id=message_id, thread_id=f"t-{message_id}", subject=subject, sender=sender,
         recipients=[], sent_at=sent_at,
-        body_text="x" * 600, label_ids=label_ids or ["INBOX"], content_hash=f"hash-{message_id}",
+        body_text=body_text if body_text is not None else "x" * 600,
+        label_ids=label_ids or ["INBOX"], content_hash=f"hash-{message_id}",
     )
 
 
@@ -89,9 +93,9 @@ def test_gather_items_truncates_detail_to_500_chars(tmp_path):
     assert len(gmail_items[0]["detail"]) == 500
 
 
-def test_gather_items_gmail_label_includes_sender_and_subject(tmp_path):
+def test_gather_items_gmail_label_uses_display_name_not_raw_email(tmp_path):
     gmail_store, calendar_store, docs_store, notes_store, entity_store = _empty_stores(tmp_path)
-    gmail_store.upsert_message(_message())
+    gmail_store.upsert_message(_message(sender="Jane Doe <jane@example.com>"))
 
     items = gather_items(
         gmail_store, calendar_store, docs_store, notes_store, entity_store,
@@ -99,8 +103,56 @@ def test_gather_items_gmail_label_includes_sender_and_subject(tmp_path):
     )
 
     gmail_items = [item for item in items if item["source"] == "gmail"]
-    assert "jane@example.com" in gmail_items[0]["label"]
+    assert "Jane Doe" in gmail_items[0]["label"]
     assert "Budget" in gmail_items[0]["label"]
+    assert "jane@example.com" not in gmail_items[0]["label"]
+
+
+def test_gather_items_gmail_label_falls_back_to_local_part_with_no_display_name(tmp_path):
+    gmail_store, calendar_store, docs_store, notes_store, entity_store = _empty_stores(tmp_path)
+    gmail_store.upsert_message(_message(sender="hello@notify.railway.app"))
+
+    items = gather_items(
+        gmail_store, calendar_store, docs_store, notes_store, entity_store,
+        since=_SINCE, now=_NOW, lookahead_end=_LOOKAHEAD_END,
+    )
+
+    gmail_items = [item for item in items if item["source"] == "gmail"]
+    assert "hello" in gmail_items[0]["label"]
+    assert "hello@notify.railway.app" not in gmail_items[0]["label"]
+
+
+def test_gather_items_gmail_label_has_no_raw_iso_timestamp(tmp_path):
+    gmail_store, calendar_store, docs_store, notes_store, entity_store = _empty_stores(tmp_path)
+    gmail_store.upsert_message(_message(sent_at="2024-06-05T19:30:00+00:00"))
+
+    items = gather_items(
+        gmail_store, calendar_store, docs_store, notes_store, entity_store,
+        since=_SINCE, now=_NOW, lookahead_end=_LOOKAHEAD_END,
+    )
+
+    gmail_items = [item for item in items if item["source"] == "gmail"]
+    assert "2024-06-05T19:30:00" not in gmail_items[0]["label"]
+
+
+def test_gather_items_excludes_newsletter_by_unsubscribe_link_even_in_primary(tmp_path):
+    gmail_store, calendar_store, docs_store, notes_store, entity_store = _empty_stores(tmp_path)
+    gmail_store.upsert_message(
+        _message(
+            subject="This week's roundup", sender="Rahul Subramaniam <rahul@example.com>",
+            label_ids=["INBOX"],  # lands in Primary, not CATEGORY_PROMOTIONS
+            body_text="Here's the latest... " + "x" * 500 + " Click here to unsubscribe.",
+        )
+    )
+
+    items = gather_items(
+        gmail_store, calendar_store, docs_store, notes_store, entity_store,
+        since=_SINCE, now=_NOW, lookahead_end=_LOOKAHEAD_END,
+    )
+
+    gmail_items = [item for item in items if item["source"] == "gmail"]
+    assert len(gmail_items) == 1
+    assert "1 additional email" in gmail_items[0]["label"]
 
 
 def test_gather_items_excludes_promotional_gmail_but_mentions_the_count(tmp_path):

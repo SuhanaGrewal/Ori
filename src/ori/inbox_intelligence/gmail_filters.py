@@ -36,3 +36,19 @@ def looks_like_auto_reply(subject: str | None, sender: str | None) -> bool:
     _, sender_email = parseaddr(sender or "")
     local_part = sender_email.split("@")[0] if sender_email else ""
     return bool(_AUTO_REPLY_SENDER_RE.search(local_part))
+
+
+# a personal-feeling newsletter (a Substack-style send from an individual's
+# actual name, not a company) lands straight in Primary - gmail's own
+# CATEGORY_* labels miss it entirely, since those are aimed at bulk/
+# commercial mail. An unsubscribe link is the one near-universal signal
+# every real newsletter/mailing-list send includes somewhere in the body
+# (List-Unsubscribe would be a cleaner, header-based signal, but gmail
+# ingestion doesn't currently capture raw headers beyond subject/from/to -
+# this works on data already stored today, same tradeoff as
+# looks_like_auto_reply above).
+_NEWSLETTER_BODY_RE = re.compile(r"\bunsubscribe\b", re.IGNORECASE)
+
+
+def looks_like_newsletter(body_text: str | None) -> bool:
+    return bool(_NEWSLETTER_BODY_RE.search(body_text or ""))
