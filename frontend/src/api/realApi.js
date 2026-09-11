@@ -20,7 +20,9 @@ export {
   appendAnswer,
 } from "./mockApi";
 
-const API_BASE = "http://localhost:8420";
+// see auth/realAuth.js's API_BASE comment - same build-time env var, kept
+// in sync manually since CRA has no shared runtime config module here.
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8420";
 
 const EMPTY_DIGEST = {
   date: new Date().toDateString(), windowStart: null, windowEnd: null,

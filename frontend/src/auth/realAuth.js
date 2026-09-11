@@ -20,7 +20,12 @@
 // localStorage (the same mechanism the mock already uses for its own
 // session key), and every authenticated request includes it.
 
-const API_BASE = "http://localhost:8420";
+// REACT_APP_API_BASE is baked in at build time (CRA convention - any env
+// var without this prefix is silently dropped from the bundle). Set it
+// on Vercel to the deployed backend's URL (e.g. the Railway app); with
+// nothing set, this still defaults to localhost for local dev against
+// `python -m ori.webchat`.
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8420";
 const SESSION_TOKEN_KEY = "ori_session_token";
 const PENDING_USER_ID_KEY = "ori_pending_user_id";
 
@@ -94,8 +99,19 @@ export async function getPendingRegistration() {
   return response.json();
 }
 
-// Starts the REAL Google OAuth flow via a full-page redirect (not a
-// fetch) - LoginPage calls this instead of navigating to /auth/google.
+// The actual "Sign in with Google" entry point - no pre-existing user_id
+// needed, unlike startGoogleConsent below. The backend looks the signed-
+// in Google account up by email and either logs into the matching
+// existing account or creates a new one (see server.py's
+// google_login_callback), so a returning user lands back on their real
+// history instead of a blank new account every time.
+export function startGoogleLogin() {
+  window.location.href = `${API_BASE}/api/auth/google/login`;
+}
+
+// Connects Google to an ALREADY-registered account (registerProfile()
+// must have run first) - kept for the settings-page "connect Google"
+// case, distinct from startGoogleLogin() above which is real sign-in.
 export function startGoogleConsent(userId) {
   window.location.href = `${API_BASE}/api/auth/google/start?user_id=${encodeURIComponent(userId)}`;
 }
